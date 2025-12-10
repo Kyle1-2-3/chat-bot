@@ -1,0 +1,12 @@
+{
+  "junior":"grade 9,grade 10",
+  "senior":"grade 11, grade 12",
+  "daily_scheduel": "arts day",
+  "block_order": "E-F-D",
+  "sign-in time": "7:15 PM",
+  "breakfast_time": "7-4:45 AM",
+  "junior lunch_time": "1-2PM",
+  "senior luch time": "1:15-2 PM",
+  "dinner_time": "5:15-6:30 PM",
+  "notes": "Robotics competition this weekend"
+}
