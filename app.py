@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 import json
 import os
 
@@ -17,7 +18,7 @@ def load_school_data():
 
 school_data = load_school_data()
 
-#  system prompt 
+
 SYSTEM_PROMPT = """
 You are a helpful Brentwood School assistant chatbot.
 You only answer questions related to school information or questions about school.
@@ -27,30 +28,33 @@ You only answer questions related to school information or questions about schoo
 def chat():
     user_msg = request.json.get("message", "")
 
-    #입력 갈이 제한
+    # 입력 길이 제한
     if len(user_msg) > 200:
         return jsonify({
             "reply": "Input cannot exceed 200 characters."
         })
 
+    # 학교 데이터 텍스트화
     info_text = "\n".join([
         f"- {key.replace('_',' ').title()}: {value}"
         for key, value in school_data.items()
     ])
-    #유저 입력과 시스템 프롬프트 분리
-    prompt = f"""
-{SYSTEM_PROMPT}
 
+    #not include system prompt
+    prompt = f"""
 Here is the school information:
 {info_text}
 
 User question:
 {user_msg}
 """
-    
+    # config는 규칙이고, content로 한번에 주면 유저 메세지랑 동급
     response = client.models.generate_content(
         model="gemini-2.0-flash",
-        contents=prompt
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT
+        )
     )
 
     return jsonify({"reply": response.text})
