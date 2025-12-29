@@ -135,7 +135,7 @@ You are a helpful Brentwood School assistant chatbot.
 You only answer questions related to school information or questions about school.
 """
 
-@app.route('/chat', methods=['POST'])
+@app.route('/api/chat', methods=['POST'])
 def chat():
     user_msg = request.json.get("message", "")
 
@@ -173,4 +173,4 @@ def index():
 # 서버 실행 
 # =========================
 if __name__ == "__main__":
-    app.run(port=3000, debug=True)
+    app.run(debug=True)
