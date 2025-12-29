@@ -2,4 +2,4 @@
 venv/
 __pycache__/
 .DS_Store
-db/school.db
+db/*.db
