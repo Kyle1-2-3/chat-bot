@@ -2,175 +2,178 @@ from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-import json
 import os
 import sqlite3
+from datetime import datetime
+import calendar
 
+load_dotenv()
 
-app = Flask(__name__, static_url_path='', static_folder='static')
+app = Flask(__name__, static_url_path="", static_folder="static")
 
-# =========================
-# DB 연결 헬퍼
-# =========================
+# ---------------------------
+# DB
+# ---------------------------
 def get_db():
-    conn = sqlite3.connect("db/school.db")
+    db_path = os.path.join("db", "school.db")
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
-# =========================
-# 급식 정보 Upsert API
-# =========================
-@app.route("/api/v1/meals", methods=["POST"])
-def upsert_meal():  
-    data = request.get_json()
+# ---------------------------
+# Context Builder
+# ---------------------------
+def get_school_context(user_msg: str) -> str:
+    conn = get_db()
+    cur = conn.cursor()
 
-    required = ["day_id", "group_id", "meal_type", "menu"]
-    if not data or not all(k in data for k in required):
-        return jsonify({"error": "Invalid request body"}), 400
+    days_map = {
+        "monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4,
+        "friday": 5, "saturday": 6, "sunday": 7
+    }
 
-    with get_db() as db:
-        cur = db.cursor()
+    # Server time (always compute per-request)
+    now = datetime.now()
+    server_day_id = now.isoweekday()
+    server_day_name = calendar.day_name[server_day_id - 1]
+    server_time = now.strftime("%H:%M")
 
-        # meal_type 문자열 -> meal_type_id
-        cur.execute(
-            "SELECT meal_type_id FROM MealTypes WHERE type_name=?",
-            (data["meal_type"],)
-        )
-        meal_type = cur.fetchone()
-        if not meal_type:
-            return jsonify({"error": "Invalid meal type"}), 400
+    # Default: today
+    target_day = server_day_id
+    day_label = f"Today ({server_day_name}, {server_time})"
 
-        # 급식 스케줄 확인
-        cur.execute("""
-            SELECT schedule_id FROM MealSchedules
-            WHERE day_id=? AND group_id=? AND meal_type_id=?
-        """, (
-            data["day_id"],
-            data["group_id"],
-            meal_type["meal_type_id"]
-        ))
-        schedule = cur.fetchone()
+    # If user explicitly mentions a weekday, use that day_id instead
+    msg_lower = (user_msg or "").lower()
+    for day_name, day_id in days_map.items():
+        if day_name in msg_lower:
+            target_day = day_id
+            # Still include server time so the model knows "today" reference
+            day_label = f"{day_name.capitalize()} (server time: {server_day_name}, {server_time})"
+            break
 
-        if not schedule:
-            return jsonify({"error": "Meal schedule not found"}), 404
+    context = f"Current server time: {day_label}\n"
+    context += f"Target Day ID: {target_day}\n"
 
-        # Upsert
-        cur.execute("""
-            INSERT INTO Menus (schedule_id, menu_content)
-            VALUES (?, ?)
-            ON CONFLICT(schedule_id)
-            DO UPDATE SET menu_content = excluded.menu_content
-        """, (
-            schedule["schedule_id"],
-            data["menu"]
-        ))
+    # 1) Meals
+    cur.execute("""
+        SELECT mt.type_name, m.menu_content, gg.group_name, ms.start_time, ms.end_time
+        FROM Menus m
+        JOIN MealSchedules ms ON m.schedule_id = ms.schedule_id
+        JOIN MealTypes mt ON ms.meal_type_id = mt.meal_type_id
+        JOIN GradeGroups gg ON ms.group_id = gg.group_id
+        WHERE ms.day_id = ?
+        ORDER BY mt.meal_type_id, gg.group_id
+    """, (target_day,))
+    meals = cur.fetchall()
 
-        db.commit()
+    context += "\n[Meals]\n"
+    if meals:
+        for m in meals:
+            context += f"- {m['type_name']} ({m['group_name']}): {m['menu_content']} [{m['start_time']}-{m['end_time']}]\n"
+    else:
+        context += "- No meal data found.\n"
 
-    return jsonify({"status": "ok"}), 200
+    # 2) Academic schedule
+    cur.execute("""
+        SELECT dt.item_type, b.block_code, dt.start_time, dt.end_time
+        FROM DayTimeline dt
+        LEFT JOIN Blocks b ON dt.block_id = b.block_id
+        WHERE dt.day_id = ?
+        ORDER BY dt.item_order
+    """, (target_day,))
+    timeline = cur.fetchall()
 
-# =========================
-# 시간표 블록 순서 업데이트 API
-# =========================
-@app.route("/api/v1/timetable/blocks", methods=["POST"])
-def update_timetable_blocks():
-    data = request.get_json()
+    context += "\n[Academic Schedule]\n"
+    if timeline:
+        for t in timeline:
+            name = t["block_code"] if t["item_type"] == "BLOCK" else t["item_type"]
+            context += f"- {name}: {t['start_time']} - {t['end_time']}\n"
+    else:
+        context += "- No schedule data found.\n"
 
-    # 요청 형식 검증
-    if not data or "day_id" not in data or "blocks" not in data:
-        return jsonify({"error": "Invalid request body"}), 400
+    # 3) Dorm rules
+    cur.execute("""
+        SELECT rt.type_name, dsr.start_time, dsr.end_time, gg.group_name
+        FROM DormScheduleRules dsr
+        JOIN DormSchedules ds ON dsr.dorm_schedule_id = ds.dorm_schedule_id
+        JOIN DormRuleTypes rt ON dsr.rule_type_id = rt.rule_type_id
+        JOIN GradeGroups gg ON ds.group_id = gg.group_id
+        WHERE ds.day_id = ?
+        ORDER BY dsr.rule_order, gg.group_id
+    """, (target_day,))
+    dorm = cur.fetchall()
 
-    day_id = data["day_id"]
-    blocks = data["blocks"]
+    context += "\n[Dorm Rules]\n"
+    if dorm:
+        for d in dorm:
+            time = f"{d['start_time']} - {d['end_time']}" if d["end_time"] else d["start_time"]
+            context += f"- {d['type_name']} ({d['group_name']}): {time}\n"
+    else:
+        context += "- No dorm rule data found.\n"
 
-    with get_db() as db:
-        cur = db.cursor()
+    conn.close()
+    return context
 
-        #해당 요일의 기존 BLOCK만 삭제
-        # (ADVISORY, ASSEMBLY, COOKIE_BREAK 등은 유지됨)
-        cur.execute("""
-            DELETE FROM DayTimeline
-            WHERE day_id = ? AND item_type = 'BLOCK'
-        """, (day_id,))
-
-        # 새 블록 순서대로 INSERT
-        order_num = 1
-        for block_code in blocks:
-            # block_code → block_id
-            cur.execute(
-                "SELECT block_id FROM Blocks WHERE block_code = ?",
-                (block_code,)
-            )
-            block = cur.fetchone()
-            if not block:
-                return jsonify({"error": f"Invalid block code: {block_code}"}), 400
-
-            cur.execute("""
-                INSERT INTO DayTimeline
-                (day_id, item_type, block_id, start_time, end_time, item_order)
-                VALUES (?, 'BLOCK', ?, NULL, NULL, ?)
-            """, (day_id, block["block_id"], order_num))
-
-            order_num += 1
-
-        db.commit()
-
-    return jsonify({"status": "ok"}), 200
-
-# =========================
-# Gemini / Chatbot 
-# =========================
-load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=API_KEY)
-
-def load_school_data():
-    with open("school_data.json", "r") as f:
-        return json.load(f)
-
-school_data = load_school_data()
+# ---------------------------
+# Gemini Client + Prompt
+# ---------------------------
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 SYSTEM_PROMPT = """
-You are a helpful Brentwood School assistant chatbot.
-You only answer questions related to school information or questions about school.
+You are a friendly Brentwood College School assistant chat bot.
+
+Rules:
+- Respond only in English.
+- Always trust the provided current server time. Never guess dates or times.
+- Only use information from the School Context.
+- If the answer is not in the School Context, say you don’t have that information.
+- Do not invent or assume missing details.
+
+Style:
+- Keep responses short, clear, and conversational.
+- Sound like a helpful student assistant, not a robot.
+- Format schedules or meals cleanly when listing them.
 """
 
-@app.route('/api/chat', methods=['POST'])
+# ---------------------------
+# Routes
+# ---------------------------
+@app.route("/chat", methods=["POST"])
 def chat():
-    user_msg = request.json.get("message", "")
+    data = request.get_json(silent=True) or {}
+
+    user_msg = data.get("message", "") or ""
+    memory = data.get("memory", "") or ""
 
     if len(user_msg) > 200:
-        return jsonify({"reply": "Input cannot exceed 200 characters."})
+        return jsonify({"reply": "Input too long."}), 400
 
-    info_text = "\n".join([
-        f"- {key.replace('_',' ').title()}: {value}"
-        for key, value in school_data.items()
-    ])
+    school_context = get_school_context(user_msg)
 
     prompt = f"""
-Here is the school information:
-{info_text}
+[Previous Conversation]
+{memory}
 
-User question:
+[School Context]
+{school_context}
+
+[User Question]
 {user_msg}
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
         )
-    )
+        return jsonify({"reply": response.text})
+    except Exception:
+        return jsonify({"reply": "API Quota exceeded. Please wait a moment."}), 429
 
-    return jsonify({"reply": response.text})
-
-@app.route('/')
+@app.route("/")
 def index():
-    return send_from_directory('static', 'index.html')
+    return send_from_directory("static", "index.html")
 
-# =========================
-# 서버 실행 
-# =========================
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True, port=5000)

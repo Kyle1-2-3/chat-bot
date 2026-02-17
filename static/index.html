@@ -1,80 +1,211 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>School Chatbot</title>
 
   <style>
+    :root {
+      --bg: #000;
+      --panel: #0b0b0b;
+      --panel2: #111;
+      --border: #222;
+      --text: #fff;
+      --muted: #a3a3a3;
+      --me: #1f2937;
+      --bot: #111827;
+      --accent: #3b82f6;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
-      font-family: Arial;
-      padding: 20px;
-      background-color: #000;
-      color: #fff;
-      font-size: 18px;
+      margin: 0;
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 14px 12px;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0;
+    }
+    .subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
     }
 
     #chat {
-      width: 100%;
-      height: 300px;
-      border: 1px solid #444;
+      flex: 1;
       overflow-y: auto;
-      padding: 10px;
-      background-color: #111;
-      border-radius: 8px;
-      margin-bottom: 12px;
+      padding: 14px;
+      background: linear-gradient(180deg, #000 0%, #050505 100%);
+    }
+
+    .row {
+      display: flex;
+      margin: 10px 0;
+    }
+    .row.me { justify-content: flex-end; }
+    .row.bot { justify-content: flex-start; }
+
+    .bubble {
+      max-width: min(560px, 86%);
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 16px;
+    }
+    .row.me .bubble {
+      background: var(--me);
+      border-color: #2b2b2b;
+    }
+    .row.bot .bubble {
+      background: var(--bot);
+      border-color: #1f2937;
+    }
+
+    .composer {
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      background: rgba(0,0,0,0.9);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--border);
+      padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+    }
+
+    .composer-inner {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
     }
 
     textarea {
-      width: 100%;
-      padding: 10px;
-      font-size: 18px;
-      background-color: #222;
-      color: #fff;
-      border: 1px solid #555;
-      border-radius: 6px;
+      flex: 1;
+      min-height: 46px;
+      max-height: 120px;
+      padding: 12px 12px;
+      font-size: 16px;
+      background: #0f0f0f;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
       resize: none;
+      outline: none;
+    }
+    textarea:focus {
+      border-color: rgba(59,130,246,0.7);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    }
+
+    .right {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+      min-width: 92px;
     }
 
     button {
-      margin-top: 8px;
-      padding: 10px 16px;
-      font-size: 18px;
-      background-color: #333;
+      width: 92px;
+      padding: 11px 12px;
+      font-size: 15px;
+      font-weight: 700;
+      background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 6px;
+      border-radius: 12px;
       cursor: pointer;
     }
-
     button:disabled {
-      background-color: #555;
+      background: #2b2b2b;
       cursor: not-allowed;
+      color: #bdbdbd;
     }
 
     #charCount {
-      margin-top: 4px;
-      font-size: 14px;
-      color: #aaa;
-      text-align: right;
+      font-size: 12px;
+      color: var(--muted);
     }
+    #charCount.warning { color: #ef4444; }
 
-    #charCount.warning {
-      color: red;
+    @media (min-width: 768px) {
+      .header { padding: 16px 18px 14px; }
+      #chat { padding: 18px; }
+      .composer { padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); }
     }
   </style>
 </head>
 
 <body>
-  <h2>School Chatbot Demo</h2>
+  <div class="app">
+  <div class="header">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    
+    <div>
+      <h1 class="title">School Chatbot</h1>
+      <p class="subtitle">Ask about meals, schedule, or dorm rules</p>
+    </div>
 
-  <div id="chat"></div>
+    <a
+      href="YOUR_GOOGLE_FORM_LINK"
+      target="_blank"
+      rel="noopener noreferrer"
+      style="
+        font-size:12px;
+        padding:8px 10px;
+        border-radius:999px;
+        border:1px solid #222;
+        color:white;
+        text-decoration:none;
+        background:rgba(255,255,255,0.06);
+        white-space:nowrap;
+      "
+    >
+      Feedback
+    </a>
 
-  <!-- 🔑 input ❌ textarea ⭕ -->
-  <textarea id="msg" rows="3" placeholder="Ask something..."></textarea>
+  </div>
+</div>
 
-  <div id="charCount">0 / 200</div>
+    <div id="chat"></div>
 
-  <button id="sendBtn">Send</button>
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="msg" rows="1" placeholder="Ask something... (Enter to send, Shift+Enter for new line)"></textarea>
+
+        <div class="right">
+          <div id="charCount">0 / 200</div>
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const input = document.getElementById("msg");
@@ -83,35 +214,66 @@
     const sendBtn = document.getElementById("sendBtn");
 
     const MAX_CHARS = 200;
-
-    // 초기 상태
     sendBtn.disabled = true;
 
-    // 🔢 실시간 글자 수 카운트
+    // ---------------------------
+    // MEMORY (last 3 turns)
+    // ---------------------------
+    function getMemory() {
+      const history = JSON.parse(localStorage.getItem("chatMemory") || "[]");
+      return history.slice(-6).join("\n"); // 3 turns => 6 lines (User/Assistant pairs)
+    }
+
+    function saveMemory(user, bot) {
+      const history = JSON.parse(localStorage.getItem("chatMemory") || "[]");
+      history.push(`User: ${user}`);
+      history.push(`Assistant: ${bot}`);
+      localStorage.setItem("chatMemory", JSON.stringify(history.slice(-6)));
+    }
+
+    function addMessage(role, text) {
+      const row = document.createElement("div");
+      row.className = `row ${role}`;
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+
+      row.appendChild(bubble);
+      chat.appendChild(row);
+
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function autosize() {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    }
+
     input.addEventListener("input", () => {
       if (input.value.length > MAX_CHARS) {
         input.value = input.value.slice(0, MAX_CHARS);
       }
 
+      autosize();
+
       const len = input.value.length;
       counter.textContent = `${len} / ${MAX_CHARS}`;
 
-      if (len >= MAX_CHARS) {
-        counter.classList.add("warning");
-      } else {
-        counter.classList.remove("warning");
-      }
+      if (len >= MAX_CHARS) counter.classList.add("warning");
+      else counter.classList.remove("warning");
 
       sendBtn.disabled = (len === 0);
     });
 
-    // ⌨️ Enter로 전송 (Shift+Enter는 줄바꿈)
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         send();
       }
     });
+
+    sendBtn.addEventListener("click", () => send());
 
     async function send() {
       const message = input.value.trim();
@@ -122,31 +284,52 @@
         return;
       }
 
-      // 입력 초기화
+      // UI: my message
+      addMessage("me", message);
+
+      // reset input
       input.value = "";
+      autosize();
       counter.textContent = `0 / ${MAX_CHARS}`;
       counter.classList.remove("warning");
       sendBtn.disabled = true;
 
-      // XSS-safe 출력
-      const me = document.createElement("p");
-      me.textContent = `Me: ${message}`;
-      chat.appendChild(me);
-
-      const res = await fetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      });
-
-      const data = await res.json();
-
-      const bot = document.createElement("p");
-      bot.textContent = `Bot: ${data.reply}`;
-      chat.appendChild(bot);
-
+      // loading bubble
+      const row = document.createElement("div");
+      row.className = "row bot";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = "Typing...";
+      row.appendChild(bubble);
+      chat.appendChild(row);
       chat.scrollTop = chat.scrollHeight;
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            memory: getMemory()
+          })
+        });
+
+        const data = await res.json();
+
+        row.remove();
+        const reply = data.reply ?? "(no reply)";
+        addMessage("bot", reply);
+
+        // save last 3 turns
+        saveMemory(message, reply);
+
+      } catch (err) {
+        row.remove();
+        addMessage("bot", "Something went wrong. Please try again.");
+      }
     }
+
+    addMessage("bot", "Hey! Ask me about today’s meals, academic blocks, or dorm rules 🙂");
   </script>
 </body>
 </html>
