@@ -7,12 +7,10 @@ import sqlite3
 from datetime import datetime, date, timedelta
 import calendar
 import json
+import logging
 import uuid
 
 load_dotenv()
-
-app = Flask(__name__, static_url_path="", static_folder="static")
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ---------------------------
 # Settings
@@ -20,6 +18,17 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 DEBUG = False
 SERVER_TAG = ""
 DB_PATH = os.path.join("db", "school.db")
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_TIMEOUT_MS = 15000  # cap each LLM call so a hung request can't tie up a worker
+
+logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
+logger = logging.getLogger("chatbot")
+
+app = Flask(__name__, static_url_path="", static_folder="static")
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS),
+)
 
 # ---------------------------
 # DB
@@ -43,9 +52,6 @@ def today() -> date:
     if override:
         return datetime.strptime(override, "%Y-%m-%d").date()
     return datetime.now().date()
-
-def get_server_day_id() -> int:
-    return today().isoweekday()
 
 def resolve_date(day_ref: str, user_msg: str = "") -> date:
     """Resolve a day_ref to an actual calendar date (blocks rotate, so dates matter)."""
@@ -74,29 +80,8 @@ def resolve_date(day_ref: str, user_msg: str = "") -> date:
     return base
 
 def resolve_day_id(day_ref: str | None, user_msg: str = "") -> int:
-    today = get_server_day_id()
-    d = (day_ref or "").upper().strip()
-
-    if d in DAYREF_MAP:
-        return DAYREF_MAP[d]
-    if d == "TODAY":
-        return today
-    if d == "TOMORROW":
-        return 1 if today == 7 else today + 1
-    if d == "DAY_AFTER_TOMORROW":
-        return ((today - 1 + 2) % 7) + 1
-
-    # fallback keyword search
-    m = (user_msg or "").lower()
-    fallback_days = {
-        "monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4,
-        "friday": 5, "saturday": 6, "sunday": 7
-    }
-    for name, did in fallback_days.items():
-        if name in m:
-            return did
-
-    return today
+    """Weekday id (1=Mon..7=Sun) for meals/sign-in — derived from the resolved date."""
+    return resolve_date(day_ref or "", user_msg).isoweekday()
 
 # ---------------------------
 # DB Fetchers
@@ -165,8 +150,10 @@ def fetch_timeline_by_date(sched_date: str) -> list[dict]:
     return rows
 
 # ---------------------------
-# LLM Classifier (Experiment 3)
+# LLM Classifier
 # ---------------------------
+MAX_REQUESTS = 6  # most intents we answer in one compound question
+
 CLASSIFIER_SYSTEM = """
 You are an intent classifier for a school chatbot.
 
@@ -175,7 +162,7 @@ No markdown.
 No explanations.
 
 The user message may ask one thing or several things at once.
-Output one request object per thing asked, in the order asked (max 3).
+Output one request object per thing asked, in the order asked (max {MAX_REQUESTS}).
 
 Schema:
 {
@@ -183,8 +170,7 @@ Schema:
     {
       "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
-      "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
-      "confidence": 0.0
+      "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null
     }
   ]
 }
@@ -205,53 +191,43 @@ Rules for each request:
   previous intent and meal_type, changing only what the user newly specified.
 - Compound example: "block order tmr and breakfast the day after tmr"
   => requests: [ {intent SCHEDULE, day_ref TOMORROW}, {intent MEAL, meal_type BREAKFAST, day_ref DAY_AFTER_TOMORROW} ]
-"""
+""".replace("{MAX_REQUESTS}", str(MAX_REQUESTS))
 
 UNKNOWN_REQUEST = {
     "intent": "UNKNOWN",
     "day_ref": "ANY",
     "meal_type": None,
-    "confidence": 0.0
 }
 
-MAX_REQUESTS = 6
+VALID_INTENTS = {
+    "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
+    "MEAL_SIGNIN", "SIGNIN_SUMMARY", "UNKNOWN"
+}
+VALID_DAYS = {
+    "TODAY", "TOMORROW", "DAY_AFTER_TOMORROW", "MONDAY", "TUESDAY",
+    "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY", "ANY"
+}
+VALID_MEALS = {"BREAKFAST", "LUNCH", "DINNER", "BRUNCH", "AFTERNOON_SNACK"}
 
 def validate_request(obj: dict) -> dict:
     intent = str(obj.get("intent", "UNKNOWN")).upper()
     day_ref = str(obj.get("day_ref", "ANY")).upper()
     meal_type = obj.get("meal_type", None)
-    confidence = obj.get("confidence", 0.0)
 
     if isinstance(meal_type, str):
         meal_type = meal_type.upper()
 
-    valid_intents = {
-        "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
-        "MEAL_SIGNIN", "SIGNIN_SUMMARY", "UNKNOWN"
-    }
-    valid_days = {
-        "TODAY", "TOMORROW", "DAY_AFTER_TOMORROW", "MONDAY", "TUESDAY",
-        "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY", "ANY"
-    }
-    valid_meals = {"BREAKFAST", "LUNCH", "DINNER", "BRUNCH", "AFTERNOON_SNACK"}
-
-    if intent not in valid_intents:
+    if intent not in VALID_INTENTS:
         intent = "UNKNOWN"
-    if day_ref not in valid_days:
+    if day_ref not in VALID_DAYS:
         day_ref = "ANY"
-    if meal_type is not None and meal_type not in valid_meals:
+    if meal_type is not None and meal_type not in VALID_MEALS:
         meal_type = None
-
-    try:
-        confidence = float(confidence)
-    except Exception:
-        confidence = 0.0
 
     return {
         "intent": intent,
         "day_ref": day_ref,
         "meal_type": meal_type,
-        "confidence": confidence
     }
 
 def classify_query(user_msg: str, memory: str = "") -> list[dict]:
@@ -263,7 +239,7 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
     prompt = f"{context}[User Message]\n{user_msg}\n\nReturn JSON only."
     try:
         r = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=CLASSIFIER_SYSTEM,
@@ -295,6 +271,7 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
         return requests_out or [dict(UNKNOWN_REQUEST)]
 
     except Exception:
+        logger.exception("classify_query failed")
         return [dict(UNKNOWN_REQUEST)]
 
 # ---------------------------
@@ -406,9 +383,9 @@ Return plain English text only.
 """
 
 def generate_answer(user_msg: str, classifications: list[dict], results: list[dict]) -> str:
-    now = datetime.now()
-    server_day_name = calendar.day_name[now.isoweekday() - 1]
-    server_time = now.strftime("%H:%M")
+    # Day reflects today() (so FAKE_TODAY works); time-of-day stays real-clock.
+    server_day_name = calendar.day_name[today().isoweekday() - 1]
+    server_time = datetime.now().strftime("%H:%M")
 
     payload = {
         "server_time": f"{server_day_name} {server_time}",
@@ -419,7 +396,7 @@ def generate_answer(user_msg: str, classifications: list[dict], results: list[di
 
     try:
         r = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=GEMINI_MODEL,
             contents=json.dumps(payload, ensure_ascii=False),
             config=types.GenerateContentConfig(
                 system_instruction=ANSWER_SYSTEM,
@@ -428,7 +405,8 @@ def generate_answer(user_msg: str, classifications: list[dict], results: list[di
         )
         return (r.text or "").strip()
     except Exception:
-        return "Sorry — I hit an API quota limit right now. Try again in a moment 🙂"
+        logger.exception("generate_answer failed")
+        return "Sorry — something went wrong on my end. Please try again in a moment 🙂"
 
 # ---------------------------
 # Routes
@@ -443,13 +421,11 @@ def chat():
     if len(user_msg) > 500:
         return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
 
-    if DEBUG:
-        print(f"\n[{req_id}] USER: {user_msg}")
+    logger.debug("[%s] USER: %s", req_id, user_msg)
 
     classifications = classify_query(user_msg, memory)
 
-    if DEBUG:
-        print(f"[{req_id}] CLASSIFICATIONS: {json.dumps(classifications, ensure_ascii=False, indent=2)}")
+    logger.debug("[%s] CLASSIFICATIONS: %s", req_id, classifications)
 
     actionable = [c for c in classifications if c.get("intent") not in ("UNKNOWN", "GREETING")]
 
@@ -467,13 +443,11 @@ def chat():
 
     try:
         results = [build_result_from_classification(c, user_msg) for c in actionable]
-    except Exception as e:
-        if DEBUG:
-            print(f"[{req_id}] build_result error: {e}")
+    except Exception:
+        logger.exception("[%s] build_result failed", req_id)
         return jsonify({"reply": "Sorry — I had trouble reading the school data."}), 500
 
-    if DEBUG:
-        print(f"[{req_id}] RESULTS: {json.dumps(results, ensure_ascii=False, indent=2)[:2500]}")
+    logger.debug("[%s] RESULTS: %s", req_id, results)
 
     reply = generate_answer(user_msg, actionable, results)
 

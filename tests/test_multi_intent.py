@@ -1,5 +1,6 @@
 import json
 import types as pytypes
+from datetime import date
 
 import app as appmod
 
@@ -17,12 +18,12 @@ def patch_llm(monkeypatch, payload: dict):
 # resolve_day_id: DAY_AFTER_TOMORROW
 # ---------------------------
 def test_day_after_tomorrow_midweek(monkeypatch):
-    monkeypatch.setattr(appmod, "get_server_day_id", lambda: 3)  # Wednesday
+    monkeypatch.setattr(appmod, "today", lambda: date(2026, 4, 22))  # Wednesday
     assert appmod.resolve_day_id("DAY_AFTER_TOMORROW") == 5  # Friday
 
 
 def test_day_after_tomorrow_wraps_week(monkeypatch):
-    monkeypatch.setattr(appmod, "get_server_day_id", lambda: 6)  # Saturday
+    monkeypatch.setattr(appmod, "today", lambda: date(2026, 4, 25))  # Saturday
     assert appmod.resolve_day_id("DAY_AFTER_TOMORROW") == 1  # Monday
 
 
@@ -32,8 +33,8 @@ def test_day_after_tomorrow_wraps_week(monkeypatch):
 def test_classify_query_returns_multiple_requests(monkeypatch):
     patch_llm(monkeypatch, {
         "requests": [
-            {"intent": "SCHEDULE", "day_ref": "TOMORROW", "meal_type": None, "confidence": 0.9},
-            {"intent": "MEAL", "day_ref": "DAY_AFTER_TOMORROW", "meal_type": "BREAKFAST", "confidence": 0.9},
+            {"intent": "SCHEDULE", "day_ref": "TOMORROW", "meal_type": None},
+            {"intent": "MEAL", "day_ref": "DAY_AFTER_TOMORROW", "meal_type": "BREAKFAST"},
         ]
     })
     out = appmod.classify_query("what is the block order tmr and breakfast the day after tmr")
@@ -44,8 +45,8 @@ def test_classify_query_returns_multiple_requests(monkeypatch):
 
 def test_classify_query_accepts_bare_json_array(monkeypatch):
     patch_llm(monkeypatch, [
-        {"intent": "SCHEDULE", "day_ref": "TOMORROW", "meal_type": None, "confidence": 1.0},
-        {"intent": "MEAL", "day_ref": "DAY_AFTER_TOMORROW", "meal_type": "BREAKFAST", "confidence": 1.0},
+        {"intent": "SCHEDULE", "day_ref": "TOMORROW", "meal_type": None},
+        {"intent": "MEAL", "day_ref": "DAY_AFTER_TOMORROW", "meal_type": "BREAKFAST"},
     ])
     out = appmod.classify_query("block order tmr and breakfast the day after tmr")
     assert [r["intent"] for r in out] == ["SCHEDULE", "MEAL"]
@@ -54,21 +55,21 @@ def test_classify_query_accepts_bare_json_array(monkeypatch):
 def test_classify_query_validates_each_request(monkeypatch):
     patch_llm(monkeypatch, {
         "requests": [
-            {"intent": "BOGUS", "day_ref": "SOMEDAY", "meal_type": "PIZZA", "confidence": "x"},
+            {"intent": "BOGUS", "day_ref": "SOMEDAY", "meal_type": "PIZZA"},
         ]
     })
     out = appmod.classify_query("hi")
-    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "confidence": 0.0}]
+    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None}]
 
 
 def test_classify_query_preserves_four_intents(monkeypatch):
     # Real failing case: "lunch today and dinner tmr and block order today and house sign-in"
     patch_llm(monkeypatch, {
         "requests": [
-            {"intent": "MEAL", "day_ref": "TODAY", "meal_type": "LUNCH", "confidence": 0.9},
-            {"intent": "MEAL", "day_ref": "TOMORROW", "meal_type": "DINNER", "confidence": 0.9},
-            {"intent": "SCHEDULE", "day_ref": "TODAY", "meal_type": None, "confidence": 0.9},
-            {"intent": "SIGNIN_SUMMARY", "day_ref": "TODAY", "meal_type": None, "confidence": 0.9},
+            {"intent": "MEAL", "day_ref": "TODAY", "meal_type": "LUNCH"},
+            {"intent": "MEAL", "day_ref": "TOMORROW", "meal_type": "DINNER"},
+            {"intent": "SCHEDULE", "day_ref": "TODAY", "meal_type": None},
+            {"intent": "SIGNIN_SUMMARY", "day_ref": "TODAY", "meal_type": None},
         ]
     })
     out = appmod.classify_query("lunch today and dinner tmr and blocks today and house sign in")
@@ -78,7 +79,7 @@ def test_classify_query_preserves_four_intents(monkeypatch):
 def test_classify_query_caps_requests_at_six(monkeypatch):
     patch_llm(monkeypatch, {
         "requests": [
-            {"intent": "MEAL", "day_ref": "MONDAY", "meal_type": "LUNCH", "confidence": 0.9}
+            {"intent": "MEAL", "day_ref": "MONDAY", "meal_type": "LUNCH"}
         ] * 8
     })
     out = appmod.classify_query("lunch x8")
@@ -87,7 +88,7 @@ def test_classify_query_caps_requests_at_six(monkeypatch):
 
 def test_classify_query_empty_message():
     out = appmod.classify_query("")
-    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "confidence": 0.0}]
+    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None}]
 
 
 # ---------------------------
@@ -95,8 +96,8 @@ def test_classify_query_empty_message():
 # ---------------------------
 def test_chat_answers_compound_question(monkeypatch):
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
-        {"intent": "SCHEDULE", "day_ref": "THURSDAY", "meal_type": None, "confidence": 0.9},
-        {"intent": "MEAL", "day_ref": "FRIDAY", "meal_type": "BREAKFAST", "confidence": 0.9},
+        {"intent": "SCHEDULE", "day_ref": "THURSDAY", "meal_type": None},
+        {"intent": "MEAL", "day_ref": "FRIDAY", "meal_type": "BREAKFAST"},
     ])
     captured = {}
 
@@ -115,8 +116,8 @@ def test_chat_answers_compound_question(monkeypatch):
 
 def test_chat_drops_unknown_when_other_intents_present(monkeypatch):
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
-        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "confidence": 0.0},
-        {"intent": "SCHEDULE", "day_ref": "MONDAY", "meal_type": None, "confidence": 0.9},
+        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None},
+        {"intent": "SCHEDULE", "day_ref": "MONDAY", "meal_type": None},
     ])
     captured = {}
 
@@ -132,7 +133,7 @@ def test_chat_drops_unknown_when_other_intents_present(monkeypatch):
 
 def test_chat_all_unknown_falls_back(monkeypatch):
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
-        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "confidence": 0.0},
+        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None},
     ])
     resp = appmod.app.test_client().post("/chat", json={"message": "asdf"})
     assert "not fully sure" in resp.get_json()["reply"]
@@ -140,7 +141,7 @@ def test_chat_all_unknown_falls_back(monkeypatch):
 
 def test_chat_greeting_only_still_greets(monkeypatch):
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
-        {"intent": "GREETING", "day_ref": "ANY", "meal_type": None, "confidence": 0.9},
+        {"intent": "GREETING", "day_ref": "ANY", "meal_type": None},
     ])
     captured = {}
 

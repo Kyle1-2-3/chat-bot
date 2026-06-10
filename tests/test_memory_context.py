@@ -9,7 +9,7 @@ def test_chat_passes_memory_to_classifier(monkeypatch):
     def fake_classify(user_msg, memory=""):
         captured["msg"] = user_msg
         captured["memory"] = memory
-        return [{"intent": "MEAL", "day_ref": "TOMORROW", "meal_type": "LUNCH", "confidence": 0.9}]
+        return [{"intent": "MEAL", "day_ref": "TOMORROW", "meal_type": "LUNCH"}]
 
     monkeypatch.setattr(appmod, "classify_query", fake_classify)
     monkeypatch.setattr(appmod, "build_result_from_classification", lambda c, m: {"type": "MEAL"})
@@ -29,7 +29,7 @@ def test_classify_query_includes_memory_in_prompt(monkeypatch):
     def fake_generate(**kw):
         seen["contents"] = kw.get("contents", "")
         return pytypes.SimpleNamespace(
-            text='{"requests":[{"intent":"MEAL","day_ref":"TOMORROW","meal_type":"LUNCH","confidence":0.9}]}'
+            text='{"requests":[{"intent":"MEAL","day_ref":"TOMORROW","meal_type":"LUNCH"}]}'
         )
 
     fake_client = pytypes.SimpleNamespace(
@@ -44,7 +44,7 @@ def test_classify_query_includes_memory_in_prompt(monkeypatch):
 def test_classify_query_works_without_memory(monkeypatch):
     fake_client = pytypes.SimpleNamespace(models=pytypes.SimpleNamespace(
         generate_content=lambda **kw: pytypes.SimpleNamespace(
-            text='{"requests":[{"intent":"GREETING","day_ref":"ANY","meal_type":null,"confidence":0.9}]}')))
+            text='{"requests":[{"intent":"GREETING","day_ref":"ANY","meal_type":null}]}')))
     monkeypatch.setattr(appmod, "client", fake_client)
     out = appmod.classify_query("hi")  # no memory arg
     assert out[0]["intent"] == "GREETING"
