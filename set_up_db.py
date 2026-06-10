@@ -99,9 +99,10 @@ def init_db():
             rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
             dorm_schedule_id INTEGER NOT NULL,
             rule_type_id INTEGER NOT NULL,
-            start_time TEXT NOT NULL,
+            start_time TEXT,            -- NULL when the rule has no fixed clock time
             end_time TEXT,
-            rule_order INTEGER NOT NULL
+            rule_order INTEGER NOT NULL,
+            note TEXT                   -- human-readable detail for untimed rules
         );
     """)
 
@@ -273,10 +274,10 @@ def init_db():
                 """, (ds_id, BEDTIME_ID, bt))
 
             else:
-                # Sunday: a morning sign-in (no set time) + a night sign-in.
+                # Sunday: an untimed morning sign-in + a night sign-in.
                 cur.execute("""
-                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
-                    VALUES (?, ?, 'morning', 1)
+                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order, note)
+                    VALUES (?, ?, NULL, 1, 'No set time — sign in any time in the morning')
                 """, (ds_id, SIGN_IN_ID))
 
                 night = "20:45" if g == 1 else "21:15"

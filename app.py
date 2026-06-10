@@ -139,7 +139,7 @@ def fetch_dorm_signins(day_id: int) -> list[dict]:
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
-        SELECT gg.group_name, dsr.start_time, dsr.rule_order
+        SELECT gg.group_name, dsr.start_time, dsr.note, dsr.rule_order
         FROM DormScheduleRules dsr
         JOIN DormSchedules ds ON dsr.dorm_schedule_id = ds.dorm_schedule_id
         JOIN DormRuleTypes rt ON dsr.rule_type_id = rt.rule_type_id
@@ -397,6 +397,7 @@ SPECIAL RULES:
   - Mention Dining Hall.
 - For SIGNIN_SUMMARY:
   - Show dorm sign-in times.
+  - If a dorm sign-in has no start_time but has a "note", state the note instead of a time (do not invent a clock time).
   - Show meal sign-ins that require sign-in.
 - For GREETING:
   - Greet back and briefly say what the user can ask.
