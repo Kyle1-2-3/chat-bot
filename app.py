@@ -175,7 +175,7 @@ def classify_query(user_msg: str) -> dict:
     prompt = f"[User Message]\n{user_msg}\n\nReturn JSON only."
     try:
         r = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=CLASSIFIER_SYSTEM,
@@ -352,7 +352,7 @@ def generate_answer(user_msg: str, classification: dict, result: dict) -> str:
 
     try:
         r = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=json.dumps(payload, ensure_ascii=False),
             config=types.GenerateContentConfig(
                 system_instruction=ANSWER_SYSTEM,
