@@ -20,6 +20,7 @@ def init_db():
         DROP TABLE IF EXISTS MealSchedules;
         DROP TABLE IF EXISTS MealTypes;
 
+        DROP TABLE IF EXISTS ScheduleTimeline;
         DROP TABLE IF EXISTS DayTimeline;
         DROP TABLE IF EXISTS Blocks;
 
