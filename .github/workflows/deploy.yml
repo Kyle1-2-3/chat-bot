@@ -1,0 +1,37 @@
+name: Deploy to EC2
+
+# Push to main -> SSH into the EC2 box and roll the code forward.
+# Mirrors the manual deploy: reset to origin/main, sync deps, reseed the
+# (read-only at runtime) sqlite DB from set_up_db.py, restart gunicorn.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/ec2-user/chat-bot
+            git fetch --quiet origin main
+            git reset --hard origin/main
+            venv/bin/pip install --quiet -r requirements.txt
+            mkdir -p ~/backups
+            cp db/school.db ~/backups/school.db.deploy.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+            venv/bin/python set_up_db.py
+            sudo systemctl restart chatbot
+            sleep 1
+            systemctl is-active chatbot
