@@ -50,6 +50,8 @@ def resolve_day_id(day_ref: str | None, user_msg: str = "") -> int:
         return today
     if d == "TOMORROW":
         return 1 if today == 7 else today + 1
+    if d == "DAY_AFTER_TOMORROW":
+        return ((today - 1 + 2) % 7) + 1
 
     # fallback keyword search
     m = (user_msg or "").lower()
@@ -140,17 +142,22 @@ Return ONLY valid JSON.
 No markdown.
 No explanations.
 
-Classify the user message into exactly ONE intent.
+The user message may ask one thing or several things at once.
+Output one request object per thing asked, in the order asked (max 3).
 
 Schema:
 {
-  "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "UNKNOWN",
-  "day_ref": "TODAY" | "TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
-  "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
-  "confidence": 0.0
+  "requests": [
+    {
+      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "UNKNOWN",
+      "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
+      "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
+      "confidence": 0.0
+    }
+  ]
 }
 
-Rules:
+Rules for each request:
 - Greeting/small talk only => GREETING
 - "today's meals", "what are meals today" => MEALS_DAY
 - "what's for lunch friday" => MEAL
@@ -160,17 +167,61 @@ Rules:
 - If the request is unclear => UNKNOWN
 - Use meal_type only when relevant
 - Use day_ref=ANY if no day is specified
-- Output exactly one intent only
+- "tmr" means tomorrow; "the day after tmr/tomorrow" => DAY_AFTER_TOMORROW
+- Compound example: "block order tmr and breakfast the day after tmr"
+  => requests: [ {intent SCHEDULE, day_ref TOMORROW}, {intent MEAL, meal_type BREAKFAST, day_ref DAY_AFTER_TOMORROW} ]
 """
 
-def classify_query(user_msg: str) -> dict:
+UNKNOWN_REQUEST = {
+    "intent": "UNKNOWN",
+    "day_ref": "ANY",
+    "meal_type": None,
+    "confidence": 0.0
+}
+
+MAX_REQUESTS = 3
+
+def validate_request(obj: dict) -> dict:
+    intent = str(obj.get("intent", "UNKNOWN")).upper()
+    day_ref = str(obj.get("day_ref", "ANY")).upper()
+    meal_type = obj.get("meal_type", None)
+    confidence = obj.get("confidence", 0.0)
+
+    if isinstance(meal_type, str):
+        meal_type = meal_type.upper()
+
+    valid_intents = {
+        "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
+        "MEAL_SIGNIN", "SIGNIN_SUMMARY", "UNKNOWN"
+    }
+    valid_days = {
+        "TODAY", "TOMORROW", "DAY_AFTER_TOMORROW", "MONDAY", "TUESDAY",
+        "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY", "ANY"
+    }
+    valid_meals = {"BREAKFAST", "LUNCH", "DINNER", "BRUNCH", "AFTERNOON_SNACK"}
+
+    if intent not in valid_intents:
+        intent = "UNKNOWN"
+    if day_ref not in valid_days:
+        day_ref = "ANY"
+    if meal_type is not None and meal_type not in valid_meals:
+        meal_type = None
+
+    try:
+        confidence = float(confidence)
+    except Exception:
+        confidence = 0.0
+
+    return {
+        "intent": intent,
+        "day_ref": day_ref,
+        "meal_type": meal_type,
+        "confidence": confidence
+    }
+
+def classify_query(user_msg: str) -> list[dict]:
     if not user_msg or not user_msg.strip():
-        return {
-            "intent": "UNKNOWN",
-            "day_ref": "ANY",
-            "meal_type": None,
-            "confidence": 0.0
-        }
+        return [dict(UNKNOWN_REQUEST)]
 
     prompt = f"[User Message]\n{user_msg}\n\nReturn JSON only."
     try:
@@ -189,50 +240,25 @@ def classify_query(user_msg: str) -> dict:
 
         obj = json.loads(txt)
 
-        intent = str(obj.get("intent", "UNKNOWN")).upper()
-        day_ref = str(obj.get("day_ref", "ANY")).upper()
-        meal_type = obj.get("meal_type", None)
-        confidence = obj.get("confidence", 0.0)
+        # accept {"requests": [...]}, a bare JSON array, or a single object
+        if isinstance(obj, list):
+            raw_requests = obj
+        elif isinstance(obj, dict):
+            raw_requests = obj.get("requests", [obj])
+        else:
+            raw_requests = []
+        if not isinstance(raw_requests, list):
+            raw_requests = [raw_requests]
 
-        if isinstance(meal_type, str):
-            meal_type = meal_type.upper()
-
-        valid_intents = {
-            "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
-            "MEAL_SIGNIN", "SIGNIN_SUMMARY", "UNKNOWN"
-        }
-        valid_days = {
-            "TODAY", "TOMORROW", "MONDAY", "TUESDAY", "WEDNESDAY",
-            "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY", "ANY"
-        }
-        valid_meals = {"BREAKFAST", "LUNCH", "DINNER", "BRUNCH", "AFTERNOON_SNACK"}
-
-        if intent not in valid_intents:
-            intent = "UNKNOWN"
-        if day_ref not in valid_days:
-            day_ref = "ANY"
-        if meal_type is not None and meal_type not in valid_meals:
-            meal_type = None
-
-        try:
-            confidence = float(confidence)
-        except Exception:
-            confidence = 0.0
-
-        return {
-            "intent": intent,
-            "day_ref": day_ref,
-            "meal_type": meal_type,
-            "confidence": confidence
-        }
+        requests_out = [
+            validate_request(item)
+            for item in raw_requests[:MAX_REQUESTS]
+            if isinstance(item, dict)
+        ]
+        return requests_out or [dict(UNKNOWN_REQUEST)]
 
     except Exception:
-        return {
-            "intent": "UNKNOWN",
-            "day_ref": "ANY",
-            "meal_type": None,
-            "confidence": 0.0
-        }
+        return [dict(UNKNOWN_REQUEST)]
 
 # ---------------------------
 # Build grounded result
@@ -311,6 +337,8 @@ IMPORTANT RULES:
 - Use ONLY the provided JSON data.
 - Do not invent schedules, meals, sign-in rules, block names, or times.
 - If the data is missing, clearly say you do not have that information.
+- "results" is a list: the user may have asked several things at once.
+  Answer EVERY result, in order, in one reply. Each result has its own day_name.
 
 STYLE:
 - Friendly, natural, concise.
@@ -338,7 +366,7 @@ SPECIAL RULES:
 Return plain English text only.
 """
 
-def generate_answer(user_msg: str, classification: dict, result: dict) -> str:
+def generate_answer(user_msg: str, classifications: list[dict], results: list[dict]) -> str:
     now = datetime.now()
     server_day_name = calendar.day_name[now.isoweekday() - 1]
     server_time = now.strftime("%H:%M")
@@ -346,8 +374,8 @@ def generate_answer(user_msg: str, classification: dict, result: dict) -> str:
     payload = {
         "server_time": f"{server_day_name} {server_time}",
         "user_message": user_msg,
-        "classification": classification,
-        "result": result,
+        "classifications": classifications,
+        "results": results,
     }
 
     try:
@@ -378,36 +406,36 @@ def chat():
     if DEBUG:
         print(f"\n[{req_id}] USER: {user_msg}")
 
-    classification = classify_query(user_msg)
+    classifications = classify_query(user_msg)
 
     if DEBUG:
-        print(f"[{req_id}] CLASSIFICATION: {json.dumps(classification, ensure_ascii=False, indent=2)}")
+        print(f"[{req_id}] CLASSIFICATIONS: {json.dumps(classifications, ensure_ascii=False, indent=2)}")
 
-    intent = classification.get("intent", "UNKNOWN")
+    actionable = [c for c in classifications if c.get("intent") not in ("UNKNOWN", "GREETING")]
 
-    if intent == "UNKNOWN":
+    if not actionable:
+        if any(c.get("intent") == "GREETING" for c in classifications):
+            reply = generate_answer(user_msg, classifications, [{"type": "GREETING"}])
+            if SERVER_TAG:
+                reply = f"{SERVER_TAG} {reply}"
+            return jsonify({"reply": reply})
+
         friendly = "Hey 🙂 I’m not fully sure what you want. You can ask about meals, schedules, or sign-in times."
         if SERVER_TAG:
             friendly = f"{SERVER_TAG} {friendly}"
         return jsonify({"reply": friendly})
 
-    if intent == "GREETING":
-        reply = generate_answer(user_msg, classification, {"type": "GREETING"})
-        if SERVER_TAG:
-            reply = f"{SERVER_TAG} {reply}"
-        return jsonify({"reply": reply})
-
     try:
-        result = build_result_from_classification(classification, user_msg)
+        results = [build_result_from_classification(c, user_msg) for c in actionable]
     except Exception as e:
         if DEBUG:
             print(f"[{req_id}] build_result error: {e}")
         return jsonify({"reply": "Sorry — I had trouble reading the school data."}), 500
 
     if DEBUG:
-        print(f"[{req_id}] RESULT: {json.dumps(result, ensure_ascii=False, indent=2)[:2500]}")
+        print(f"[{req_id}] RESULTS: {json.dumps(results, ensure_ascii=False, indent=2)[:2500]}")
 
-    reply = generate_answer(user_msg, classification, result)
+    reply = generate_answer(user_msg, actionable, results)
 
     if SERVER_TAG:
         reply = f"{SERVER_TAG} {reply}"
