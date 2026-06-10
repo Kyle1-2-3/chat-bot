@@ -13,34 +13,34 @@
      Conversational Compact direction
      ============================================================ */
   :root {
-    /* Accent — single Action Blue carries every interactive element */
-    --primary: #0066cc;
-    --primary-focus: #0071e3;
+    /* Accent — Sky Link Blue reads on dark where Action Blue would sink */
+    --primary: #2997ff;
+    --primary-focus: #0a84ff;
     --primary-on-dark: #2997ff;
 
-    /* Surfaces */
-    --canvas: #ffffff;
-    --canvas-parchment: #f5f5f7;
-    --surface-pearl: #fafafc;
+    /* Surfaces — Apple dark ladder */
+    --canvas: #2c2c2e;            /* elevated surface: bubbles, input, chips, glyphs */
+    --canvas-parchment: #1c1c1e;  /* page base */
+    --surface-pearl: #3a3a3c;     /* hover / secondary */
 
-    /* Ink */
-    --ink: #1d1d1f;
-    --ink-muted-80: #333333;
-    --ink-muted-48: #7a7a7a;
+    /* Ink (text on dark) */
+    --ink: #f5f5f7;
+    --ink-muted-80: #c7c7cc;
+    --ink-muted-48: #8e8e93;
 
     /* Lines */
-    --hairline: #e0e0e0;
-    --divider-soft: rgba(0, 0, 0, 0.04);
-    --input-ring: rgba(0, 0, 0, 0.08);
+    --hairline: rgba(255, 255, 255, 0.14);
+    --divider-soft: rgba(255, 255, 255, 0.08);
+    --input-ring: rgba(255, 255, 255, 0.16);
 
-    /* Frosted glass fill (header + composer) */
-    --frost: rgba(245, 245, 247, 0.80);
+    /* Frosted glass fill (header + composer) — dark glass */
+    --frost: rgba(28, 28, 30, 0.72);
 
-    /* User bubble — neutral white so Action Blue stays the only accent */
-    --bubble-user: #ffffff;
+    /* User bubble — elevated dark surface */
+    --bubble-user: #2c2c2e;
 
-    /* Warning (counter only — derived from system red, not a brand accent) */
-    --warn: #b3261e;
+    /* Warning (counter only) */
+    --warn: #ff453a;
 
     /* Type families */
     --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Inter", sans-serif;
@@ -83,6 +83,7 @@
     letter-spacing: -0.374px;
     color: var(--ink);
     background: var(--canvas-parchment);
+    color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
