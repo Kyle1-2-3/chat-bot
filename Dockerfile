@@ -1,9 +1,9 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txtd
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-RUN mkdir -p /app/db
+RUN python set_up_db.py
 ENV FLASK_APP=app.py
 ENV FLASK_RUN_HOST=0.0.0.0
 ENV FLASK_ENV=production

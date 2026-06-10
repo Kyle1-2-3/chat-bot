@@ -2,4 +2,5 @@ flask
 flask_sqlalchemy
 python-dotenv
 google-genai
+gunicorn
 
