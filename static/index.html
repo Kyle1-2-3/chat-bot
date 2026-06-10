@@ -3,94 +3,61 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
 <title>Brentwood Assistant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* ============================================================
-     LOCKED VISUAL SYSTEM — Apple design language
-     Conversational Compact direction
+     Friendly contemporary messenger — warm dark theme
      ============================================================ */
   :root {
-    /* Accent — Sky Link Blue reads on dark where Action Blue would sink */
-    --primary: #2997ff;
-    --primary-focus: #0a84ff;
-    --primary-on-dark: #2997ff;
+    /* Warm dark surfaces */
+    --bg:        #17181c;   /* page */
+    --surface:   #232529;   /* bot bubble, input, cards */
+    --surface-2: #2e3036;   /* hover / secondary */
+    --header:    rgba(23, 24, 28, 0.82);
 
-    /* Surfaces — Apple dark ladder */
-    --canvas: #2c2c2e;            /* elevated surface: bubbles, input, chips, glyphs */
-    --canvas-parchment: #1c1c1e;  /* page base */
-    --surface-pearl: #3a3a3c;     /* hover / secondary */
+    /* Accent (friendly messenger blue) */
+    --accent:    #3b82f6;
+    --accent-2:  #2f6fe0;
+    --accent-soft: rgba(59, 130, 246, 0.16);
 
-    /* Ink (text on dark) */
-    --ink: #f5f5f7;
-    --ink-muted-80: #c7c7cc;
-    --ink-muted-48: #8e8e93;
+    /* Text */
+    --text:        #f2f3f5;
+    --text-muted:  #a6abb4;
+    --text-dim:    #71757d;
+    --on-accent:   #ffffff;
 
-    /* Lines */
-    --hairline: rgba(255, 255, 255, 0.14);
-    --divider-soft: rgba(255, 255, 255, 0.08);
-    --input-ring: rgba(255, 255, 255, 0.16);
-
-    /* Frosted glass fill (header + composer) — dark glass */
-    --frost: rgba(28, 28, 30, 0.72);
-
-    /* User bubble — elevated dark surface */
-    --bubble-user: #2c2c2e;
+    /* Lines + depth */
+    --line: rgba(255, 255, 255, 0.08);
+    --shadow-bubble: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-pop: 0 6px 24px rgba(0, 0, 0, 0.4);
 
     /* Warning (counter only) */
-    --warn: #ff453a;
+    --warn: #ff6b5e;
 
-    /* Type families */
-    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Inter", sans-serif;
-    --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Inter", sans-serif;
+    --font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-    /* Spacing — 8px base */
-    --xxs: 4px;
-    --xs: 8px;
-    --sm: 12px;
-    --md: 17px;
-    --lg: 24px;
-    --xl: 32px;
-    --xxl: 48px;
-
-    /* Radii */
-    --r-sm: 8px;
-    --r-md: 11px;
-    --r-lg: 18px;
-    --r-pill: 9999px;
-
-    /* Chat column */
     --col: 720px;
-
-    /* Measured composer height (set via ResizeObserver) */
     --dock-h: 96px;
   }
 
   * { box-sizing: border-box; }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-  }
+  html, body { margin: 0; padding: 0; height: 100%; }
 
   body {
-    font-family: var(--font-text);
-    font-size: 17px;
-    line-height: 1.47;
-    letter-spacing: -0.374px;
-    color: var(--ink);
-    background: var(--canvas-parchment);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
     color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  /* ============================================================
-     APP SHELL — full-height thread, sticky frosted composer
-     ============================================================ */
   .app {
     display: flex;
     flex-direction: column;
@@ -98,431 +65,213 @@
     min-height: 100dvh;
   }
 
-  /* Slim quiet top bar — frosted parchment (restraint over a black bar) */
+  /* ---------------- Header (messenger style) ---------------- */
   .topbar {
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    height: 44px;
-    background: var(--frost);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 1px solid var(--divider-soft);
-    color: var(--ink);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: sticky; top: 0; z-index: 30;
     flex: 0 0 auto;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    background: var(--header);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
+    border-bottom: 1px solid var(--line);
   }
-  .topbar__title {
-    font-family: var(--font-text);
-    font-size: 15px;
-    line-height: 1;
-    letter-spacing: -0.2px;
-    font-weight: 600;
-    color: var(--ink);
-    display: inline-flex;
-    align-items: center;
-    gap: var(--xs);
-  }
-  .topbar__dot {
-    width: 7px;
-    height: 7px;
+  .avatar {
+    flex: 0 0 auto;
     border-radius: 50%;
-    background: var(--primary);
+    background: linear-gradient(140deg, #4f8cff 0%, #6a5cff 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    box-shadow: var(--shadow-bubble);
+  }
+  .avatar svg { width: 56%; height: 56%; }
+  .topbar .avatar { width: 38px; height: 38px; }
+  .topbar__meta { display: flex; flex-direction: column; line-height: 1.2; }
+  .topbar__name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .topbar__status {
+    font-size: 12px; font-weight: 500; color: var(--text-muted);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,0.25);
   }
 
-  /* ---- Scrolling thread region ---- */
+  /* ---------------- Scrolling thread ---------------- */
   .thread-scroll {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
+    flex: 1 1 auto; overflow-y: auto;
+    -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
   }
+  .thread { width: 100%; max-width: var(--col); margin: 0 auto; padding: 20px 16px 28px; }
 
-  .thread {
-    width: 100%;
-    max-width: var(--col);
-    margin: 0 auto;
-    padding: var(--lg) var(--lg) var(--xl);
-  }
-
-  /* ============================================================
-     EMPTY / FIRST-SCREEN STATE — hero pulled toward center
-     ============================================================ */
+  /* ---------------- Empty / welcome state ---------------- */
   .hero {
-    min-height: calc(100dvh - 44px - var(--dock-h));
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: var(--xl) 0 var(--lg);
-    gap: var(--md);
+    min-height: calc(100dvh - 60px - var(--dock-h));
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 10px; padding: 24px 0;
   }
   .hero.is-hidden { display: none; }
+  .hero .avatar { width: 72px; height: 72px; margin-bottom: 6px; }
+  .hero__title { font-size: 30px; font-weight: 700; letter-spacing: -0.3px; margin: 0; color: var(--text); }
+  .hero__scope { font-size: 16px; font-weight: 500; color: var(--text-muted); max-width: 34ch; margin: 2px 0 0; }
 
-  .hero__crest {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--canvas);
-    border: 1px solid var(--hairline);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: var(--xs);
-  }
-  .hero__crest svg { width: 26px; height: 26px; }
-
-  .hero__title {
-    font-family: var(--font-display);
-    font-size: 40px;
-    line-height: 1.10;
-    letter-spacing: -0.01em;
-    font-weight: 600;
-    margin: 0;
-    color: var(--ink);
-  }
-  .hero__scope {
-    font-family: var(--font-text);
-    font-size: 21px;
-    line-height: 1.4;
-    letter-spacing: 0;
-    font-weight: 300;
-    color: var(--ink-muted-80);
-    max-width: 36ch;
-    margin: 0;
-  }
-
-  /* Capability hint chips — disappear after first message */
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--xs);
-    margin-top: var(--sm);
-    max-width: 600px;
-  }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 18px; max-width: 560px; }
   .chip {
-    font-family: var(--font-text);
-    font-size: 14px;
-    line-height: 1.29;
-    letter-spacing: -0.224px;
-    font-weight: 400;
-    color: var(--primary);
-    background: var(--canvas);
-    border: 1px solid var(--input-ring);
-    border-radius: var(--r-pill);
-    padding: 11px 17px;
-    cursor: pointer;
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+    color: var(--text); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 9999px;
+    padding: 10px 16px; cursor: pointer; min-height: 42px;
+    box-shadow: var(--shadow-bubble);
     transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease;
-    min-height: 44px;
   }
-  .chip:hover { background: var(--surface-pearl); border-color: var(--primary); }
-  .chip:active { transform: scale(0.95); }
-  .chip:focus-visible {
-    outline: 2px solid var(--primary-focus);
-    outline-offset: 2px;
-  }
+  .chip:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.16); }
+  .chip:active { transform: scale(0.96); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* ============================================================
-     MESSAGE THREAD — asymmetric turns
-     ============================================================ */
-  .turn { display: flex; margin-bottom: var(--lg); }
+  /* ---------------- Messages (bubbles both sides) ---------------- */
+  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 14px; }
   .turn--user { justify-content: flex-end; }
-  .turn--bot { justify-content: flex-start; }
+  .turn--bot  { justify-content: flex-start; }
+  .turn .avatar { width: 30px; height: 30px; margin-bottom: 2px; }
 
-  /* User: compact neutral bubble (white + hairline lifts it off parchment) */
+  .bubble {
+    max-width: 78%;
+    font-size: 16px; line-height: 1.5;
+    padding: 10px 14px; border-radius: 20px;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    box-shadow: var(--shadow-bubble);
+  }
   .bubble-user {
-    max-width: 80%;
-    background: var(--bubble-user);
-    border: 1px solid var(--hairline);
-    color: var(--ink);
-    font-size: 17px;
-    line-height: 1.47;
-    letter-spacing: -0.374px;
-    padding: 11px 17px;
-    border-radius: var(--r-lg);
-    border-bottom-right-radius: var(--r-sm);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    background: var(--accent); color: var(--on-accent);
+    border-bottom-right-radius: 7px;
   }
+  .bubble-bot {
+    background: var(--surface); color: var(--text);
+    border-bottom-left-radius: 7px;
+  }
+  .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 78%; gap: 4px; }
+  .bot-col .bubble { max-width: 100%; }
 
-  /* Bot: full-width borderless plain text */
-  .bot-wrap {
-    width: 100%;
-    display: flex;
-    gap: var(--sm);
-    align-items: flex-start;
-  }
-  .bot-glyph {
-    flex: 0 0 auto;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--canvas);
-    border: 1px solid var(--hairline);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: 1px;
-  }
-  .bot-glyph svg { width: 15px; height: 15px; }
-
-  .bot-body { flex: 1 1 auto; min-width: 0; }
-  .bot-text {
-    font-size: 17px;
-    line-height: 1.5;
-    letter-spacing: -0.374px;
-    color: var(--ink);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    margin: 0;
-  }
-
-  /* Copy action under bot reply */
-  .bot-actions {
-    margin-top: var(--xs);
-    height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: opacity 0.18s ease;
-  }
-  .turn--bot:hover .bot-actions,
-  .turn--bot:focus-within .bot-actions {
-    height: auto;
-    opacity: 1;
-  }
+  .bot-actions { padding-left: 6px; height: 0; overflow: hidden; opacity: 0; transition: opacity 0.18s ease; }
+  .turn--bot:hover .bot-actions, .turn--bot:focus-within .bot-actions { height: auto; opacity: 1; }
   .copy-btn {
-    font-family: var(--font-text);
-    font-size: 14px;
-    letter-spacing: -0.224px;
-    font-weight: 400;
-    color: var(--primary);
-    background: transparent;
-    border: none;
-    padding: 6px 0;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text-muted);
+    background: transparent; border: none; padding: 2px 0; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
   }
-  .copy-btn:active { transform: scale(0.95); }
-  .copy-btn:focus-visible {
-    outline: 2px solid var(--primary-focus);
-    outline-offset: 2px;
-    border-radius: var(--r-sm);
-  }
-  .copy-btn svg { width: 14px; height: 14px; }
+  .copy-btn:hover { color: var(--text); }
+  .copy-btn:active { transform: scale(0.96); }
+  .copy-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  .copy-btn svg { width: 13px; height: 13px; }
 
-  /* Typing indicator — three dots in bot position */
-  .typing {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 2px;
-  }
-  .typing span {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--ink-muted-48);
-    animation: bounce 1.2s infinite ease-in-out both;
-  }
+  /* Typing dots inside a bot bubble */
+  .typing { display: inline-flex; align-items: center; gap: 5px; padding: 3px 1px; }
+  .typing span { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); animation: bounce 1.2s infinite ease-in-out both; }
   .typing span:nth-child(2) { animation-delay: 0.18s; }
   .typing span:nth-child(3) { animation-delay: 0.36s; }
-  @keyframes bounce {
-    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-    40% { transform: scale(1); opacity: 1; }
-  }
+  @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
 
-  /* Inline error notice — bot-styled */
-  .notice {
-    font-size: 17px;
-    line-height: 1.5;
-    letter-spacing: -0.374px;
-    color: var(--ink-muted-80);
+  /* Inline error + retry */
+  .retry {
+    margin-top: 2px; align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--accent);
+    background: var(--accent-soft); border: none; border-radius: 9999px;
+    padding: 8px 15px; cursor: pointer; min-height: 38px;
   }
-  .notice__retry {
-    margin-top: var(--sm);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--font-text);
-    font-size: 14px;
-    letter-spacing: -0.224px;
-    color: var(--primary);
-    background: transparent;
-    border: 1px solid var(--primary);
-    border-radius: var(--r-pill);
-    padding: 8px 15px;
-    cursor: pointer;
-    min-height: 36px;
-  }
-  .notice__retry:active { transform: scale(0.95); }
-  .notice__retry:focus-visible {
-    outline: 2px solid var(--primary-focus);
-    outline-offset: 2px;
-  }
+  .retry:hover { background: rgba(59,130,246,0.24); }
+  .retry:active { transform: scale(0.96); }
+  .retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .retry svg { width: 15px; height: 15px; }
 
-  /* ============================================================
-     COMPOSER — sticky frosted glass, bottom
-     ============================================================ */
+  /* ---------------- Composer ---------------- */
   .composer-dock {
-    position: sticky;
-    bottom: 0;
-    z-index: 20;
-    flex: 0 0 auto;
-    background: var(--frost);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    backdrop-filter: saturate(180%) blur(20px);
-    border-top: 1px solid var(--divider-soft);
+    position: sticky; bottom: 0; z-index: 20; flex: 0 0 auto;
+    background: var(--header);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
+    border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .composer {
-    width: 100%;
-    max-width: var(--col);
-    margin: 0 auto;
-    padding: var(--sm) var(--lg) var(--xs);
-  }
+  .composer { width: 100%; max-width: var(--col); margin: 0 auto; padding: 12px 16px 8px; }
   .composer__field {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--xs);
-    background: var(--canvas);
-    border: 1px solid var(--input-ring);
-    border-radius: var(--r-lg);
-    padding: 6px 6px 6px 18px;
+    display: flex; align-items: flex-end; gap: 8px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 24px; padding: 5px 5px 5px 18px;
+    box-shadow: var(--shadow-bubble);
     transition: border-color 0.18s ease;
   }
-  .composer__field:focus-within {
-    border-color: var(--primary);
-  }
-
+  .composer__field:focus-within { border-color: var(--accent); }
   textarea#input {
-    flex: 1 1 auto;
-    resize: none;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-family: var(--font-text);
-    font-size: 17px;
-    line-height: 1.47;
-    letter-spacing: -0.374px;
-    color: var(--ink);
-    padding: 9px 0;
-    max-height: 132px; /* ~5-6 lines */
-    overflow-y: auto;
+    flex: 1 1 auto; resize: none; border: none; outline: none; background: transparent;
+    font-family: var(--font); font-size: 16px; line-height: 1.5; color: var(--text);
+    padding: 9px 0; max-height: 132px; overflow-y: auto;
   }
-  textarea#input::placeholder { color: var(--ink-muted-48); }
+  textarea#input::placeholder { color: var(--text-dim); }
 
-  /* Circular send button */
   .send {
-    flex: 0 0 auto;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: none;
-    background: var(--primary);
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
+    flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; border: none;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: var(--shadow-bubble);
     transition: transform 0.12s ease, background 0.18s ease, opacity 0.18s ease;
   }
-  .send svg { width: 20px; height: 20px; }
-  .send:not(:disabled):active { transform: scale(0.95); }
-  .send:focus-visible {
-    outline: 2px solid var(--primary-focus);
-    outline-offset: 2px;
-  }
-  .send:disabled {
-    background: var(--ink-muted-48);
-    opacity: 0.45;
-    cursor: default;
-  }
+  .send svg { width: 19px; height: 19px; }
+  .send:not(:disabled):hover { background: var(--accent-2); }
+  .send:not(:disabled):active { transform: scale(0.94); }
+  .send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .send:disabled { background: var(--surface-2); color: var(--text-dim); cursor: default; box-shadow: none; }
 
-  /* Meta row — hint + char counter */
-  .composer__meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--sm);
-    padding: var(--xxs) var(--xxs) 0;
-    min-height: 18px;
-  }
-  .composer__hint {
-    font-family: var(--font-text);
-    font-size: 12px;
-    line-height: 1;
-    letter-spacing: -0.12px;
-    color: var(--ink-muted-48);
-  }
-  .counter {
-    font-family: var(--font-text);
-    font-size: 12px;
-    line-height: 1;
-    letter-spacing: -0.12px;
-    color: var(--ink-muted-48);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
+  .composer__meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 6px 0; min-height: 16px; }
+  .composer__hint { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+  .counter { font-size: 12px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .counter.is-warn { color: var(--warn); }
 
-  /* ============================================================
-     RESPONSIVE
-     ============================================================ */
+  /* ---------------- Responsive ---------------- */
   @media (max-width: 640px) {
-    .thread { padding: var(--md) var(--md) var(--lg); }
-    .hero__title { font-size: 34px; }
-    .hero__scope { font-size: 19px; }
-    .composer { padding: var(--xs) var(--md) var(--xxs); }
-    .bubble-user { max-width: 85%; }
-    .composer__hint { display: none; } /* touch users don't use Enter-to-send */
+    .thread { padding: 16px 12px 22px; }
+    .hero__title { font-size: 26px; }
+    .hero__scope { font-size: 15px; }
+    .bubble { max-width: 84%; }
+    .bot-col { max-width: 84%; }
+    .composer__hint { display: none; }
     .composer__meta { justify-content: flex-end; }
   }
-
   @media (prefers-reduced-motion: reduce) {
     .thread-scroll { scroll-behavior: auto; }
     .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
-    .chip:active, .send:not(:disabled):active, .copy-btn:active, .notice__retry:active { transform: none; }
+    .chip:active, .send:not(:disabled):active, .copy-btn:active, .retry:active { transform: none; }
   }
-
-  .sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap; border: 0;
-  }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
   <div class="app">
-    <!-- Quiet slim header (frosted parchment) -->
+    <!-- Header -->
     <header class="topbar">
-      <span class="topbar__title">
-        <span class="topbar__dot" aria-hidden="true"></span>
-        Brentwood Assistant
-      </span>
+      <div class="avatar" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/>
+        </svg>
+      </div>
+      <div class="topbar__meta">
+        <span class="topbar__name">Brentwood Assistant</span>
+        <span class="topbar__status"><span class="status-dot" aria-hidden="true"></span>Online &middot; Meals, schedule &amp; dorm</span>
+      </div>
     </header>
 
-    <!-- Scrolling thread -->
+    <!-- Thread -->
     <main class="thread-scroll" id="scroll">
       <div class="thread">
-        <!-- Empty state hero -->
+        <!-- Welcome -->
         <section class="hero" id="hero">
-          <div class="hero__crest" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary)">
-              <path d="M12 3 4 7v6c0 4.5 3.4 7.3 8 8 4.6-.7 8-3.5 8-8V7l-8-4Z"/>
+          <div class="avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/>
             </svg>
           </div>
-          <h1 class="hero__title">Brentwood Assistant</h1>
-          <p class="hero__scope">Ask me about meals, your class schedule, or dorm sign-in and curfew times.</p>
-
+          <h1 class="hero__title">Hey there &#128075;</h1>
+          <p class="hero__scope">I&rsquo;m your Brentwood Assistant. Ask me about meals, your class schedule, or dorm sign-in &amp; curfew times.</p>
           <div class="chips" id="chips" role="group" aria-label="Suggested questions">
             <button class="chip" type="button">What&rsquo;s for lunch today?</button>
             <button class="chip" type="button">When does study hall start tonight?</button>
@@ -532,19 +281,16 @@
           </div>
         </section>
 
-        <!-- Live conversation log -->
         <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
       </div>
     </main>
 
-    <!-- Sticky frosted composer -->
+    <!-- Composer -->
     <div class="composer-dock">
       <form class="composer" id="form">
         <div class="composer__field">
           <label for="input" class="sr-only">Message Brentwood Assistant</label>
-          <textarea id="input" rows="1" maxlength="500"
-            placeholder="Ask about meals, your schedule, or dorm sign-in&hellip;"
-            aria-describedby="counter"></textarea>
+          <textarea id="input" rows="1" maxlength="500" placeholder="Type a message&hellip;" aria-describedby="counter"></textarea>
           <button class="send" id="send" type="submit" aria-label="Send" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
@@ -561,21 +307,16 @@
 
 <script>
   // ============================================================
-  // API contract
-  // The Flask backend (app.py) serves @app.route("/chat", POST).
-  // If deployed behind nginx that proxies "/api", change to "/api/chat".
-  // POST { message, memory } -> { reply }
+  // API: Flask serves @app.route("/chat", POST). Behind nginx that
+  // proxies "/api", change to "/api/chat". POST {message,memory}->{reply}
   // ============================================================
   const API_ENDPOINT = "/chat";
   const MAX_CHARS = 500;
   const WARN_AT = 450;
   const REQUEST_TIMEOUT_MS = 18000;
 
-  // Conversation lives only in memory — never localStorage.
-  // Each item: { role: "user" | "bot", text: "..." }
-  const conversation = [];
+  const conversation = []; // { role:"user"|"bot", text } — memory only, no localStorage
 
-  // --- Elements ---
   const scrollEl  = document.getElementById("scroll");
   const heroEl    = document.getElementById("hero");
   const chipsEl   = document.getElementById("chips");
@@ -588,82 +329,55 @@
 
   let inFlight = false;
 
-  // --- SVG helpers (static, trusted markup only) ---
-  const ICON_BOT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary)"><path d="M12 3 4 7v6c0 4.5 3.4 7.3 8 8 4.6-.7 8-3.5 8-8V7l-8-4Z"/></svg>';
+  const ICON_AVATAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/></svg>';
   const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
   const ICON_RETRY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
-  // ============================================================
-  // Composer behavior
-  // ============================================================
-  function autoGrow() {
-    inputEl.style.height = "auto";
-    inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px";
-  }
-
+  // ---------------- Composer behavior ----------------
+  function autoGrow() { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px"; }
   function updateCounter() {
     const n = inputEl.value.length;
     counterEl.textContent = n + "/" + MAX_CHARS;
     counterEl.classList.toggle("is-warn", n >= WARN_AT);
   }
-
-  function refreshSendState() {
-    const hasText = inputEl.value.trim().length > 0;
-    sendEl.disabled = !hasText || inFlight;
-  }
+  function refreshSendState() { sendEl.disabled = inputEl.value.trim().length === 0 || inFlight; }
 
   inputEl.addEventListener("input", () => {
-    // Guard programmatic / paste paths that can exceed maxlength.
-    if (inputEl.value.length > MAX_CHARS) {
-      inputEl.value = inputEl.value.slice(0, MAX_CHARS);
-    }
-    autoGrow();
-    updateCounter();
-    refreshSendState();
+    if (inputEl.value.length > MAX_CHARS) inputEl.value = inputEl.value.slice(0, MAX_CHARS);
+    autoGrow(); updateCounter(); refreshSendState();
   });
-
   inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      formEl.requestSubmit();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); formEl.requestSubmit(); }
   });
-
   formEl.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = inputEl.value.trim();
     if (!text || inFlight) return;
     sendMessage(text);
   });
-
-  // Chips: prefill + immediately send, then never return.
   chipsEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".chip");
     if (!btn || inFlight) return;
     sendMessage(btn.textContent.trim());
   });
 
-  // ============================================================
-  // Rendering — always textContent / text nodes (no innerHTML for model output)
-  // ============================================================
-  function hideHero() {
-    if (!heroEl.classList.contains("is-hidden")) {
-      heroEl.classList.add("is-hidden");
-    }
-  }
+  // ---------------- Rendering (textContent only for model output) ----------------
+  function hideHero() { heroEl.classList.add("is-hidden"); }
+  function scrollToBottom() { requestAnimationFrame(() => { scrollEl.scrollTop = scrollEl.scrollHeight; }); }
 
-  function scrollToBottom() {
-    requestAnimationFrame(() => {
-      scrollEl.scrollTop = scrollEl.scrollHeight;
-    });
+  function makeAvatar() {
+    const a = document.createElement("div");
+    a.className = "avatar"; a.setAttribute("aria-hidden", "true");
+    a.innerHTML = ICON_AVATAR; // static trusted markup
+    return a;
   }
 
   function appendUser(text) {
     const turn = document.createElement("div");
     turn.className = "turn turn--user";
     const bubble = document.createElement("div");
-    bubble.className = "bubble-user";
-    bubble.textContent = text; // safe
+    bubble.className = "bubble bubble-user";
+    bubble.textContent = text;
     turn.appendChild(bubble);
     logEl.appendChild(turn);
     scrollToBottom();
@@ -672,119 +386,80 @@
   function makeBotTurn() {
     const turn = document.createElement("div");
     turn.className = "turn turn--bot";
-    const wrap = document.createElement("div");
-    wrap.className = "bot-wrap";
-
-    const glyph = document.createElement("div");
-    glyph.className = "bot-glyph";
-    glyph.setAttribute("aria-hidden", "true");
-    glyph.innerHTML = ICON_BOT; // static trusted markup
-
-    const body = document.createElement("div");
-    body.className = "bot-body";
-
-    wrap.appendChild(glyph);
-    wrap.appendChild(body);
-    turn.appendChild(wrap);
+    const col = document.createElement("div");
+    col.className = "bot-col";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble bubble-bot";
+    col.appendChild(bubble);
+    turn.appendChild(makeAvatar());
+    turn.appendChild(col);
     logEl.appendChild(turn);
-    return { turn, body };
+    return { turn, bubble, col };
   }
 
-  function showTyping(body) {
+  function showTyping(bubble) {
     const t = document.createElement("div");
-    t.className = "typing";
-    t.setAttribute("role", "status");
+    t.className = "typing"; t.setAttribute("role", "status");
     t.setAttribute("aria-label", "Brentwood Assistant is typing");
     t.innerHTML = "<span></span><span></span><span></span>";
-    body.appendChild(t);
+    bubble.appendChild(t);
     scrollToBottom();
   }
 
-  function renderReply(body, text) {
-    body.textContent = ""; // also removes the typing indicator
-    const p = document.createElement("p");
-    p.className = "bot-text";
-    p.textContent = text; // safe; CSS pre-wrap renders \n and simple lists
-
+  function renderReply(bubble, col, text) {
+    bubble.textContent = text; // safe; pre-wrap renders newlines + simple lists
     const actions = document.createElement("div");
     actions.className = "bot-actions";
     const copyBtn = document.createElement("button");
-    copyBtn.type = "button";
-    copyBtn.className = "copy-btn";
+    copyBtn.type = "button"; copyBtn.className = "copy-btn";
     copyBtn.innerHTML = ICON_COPY + "<span>Copy</span>";
     copyBtn.addEventListener("click", () => {
       navigator.clipboard?.writeText(text).then(() => {
-        const label = copyBtn.querySelector("span");
-        const prev = label.textContent;
-        label.textContent = "Copied";
-        setTimeout(() => { label.textContent = prev; }, 1400);
+        const label = copyBtn.querySelector("span"); const prev = label.textContent;
+        label.textContent = "Copied"; setTimeout(() => { label.textContent = prev; }, 1400);
       });
     });
     actions.appendChild(copyBtn);
-
-    body.appendChild(p);
-    body.appendChild(actions);
+    col.appendChild(actions);
     scrollToBottom();
   }
 
-  function renderError(body, lastUserText) {
-    body.textContent = ""; // also removes the typing indicator
-    const p = document.createElement("p");
-    p.className = "bot-text notice";
-    p.textContent = "Sorry, I couldn’t reach the server. Please try again.";
-
+  function renderError(bubble, col, lastUserText) {
+    bubble.textContent = "Sorry, I couldn’t reach the server. Please try again.";
     const retry = document.createElement("button");
-    retry.type = "button";
-    retry.className = "notice__retry";
+    retry.type = "button"; retry.className = "retry";
     retry.innerHTML = ICON_RETRY + "<span>Try again</span>";
     retry.addEventListener("click", () => {
       if (inFlight) return;
-      // Remove this failed bot turn, then re-send the same message.
-      const turn = body.closest(".turn");
+      const turn = col.closest(".turn");
       if (turn) turn.remove();
       runRequest(lastUserText);
     });
-
-    body.appendChild(p);
-    body.appendChild(retry);
+    col.appendChild(retry);
     scrollToBottom();
   }
 
-  // ============================================================
-  // Memory — the ~3 turns PRIOR to the in-flight message
-  // ============================================================
+  // ---------------- Memory (turns prior to the in-flight message) ----------------
   function buildMemory() {
-    // Exclude the last entry: it's the current user message, sent separately
-    // as `message`. Including it would duplicate the turn in context.
     const prior = conversation.slice(0, -1);
-    const recent = prior.slice(-6); // ~3 user/bot pairs
-    return recent
+    return prior.slice(-6)
       .map(t => (t.role === "user" ? "Student" : "Assistant") + ": " + t.text)
       .join("\n");
   }
 
-  // ============================================================
-  // Send flow
-  // ============================================================
+  // ---------------- Send flow ----------------
   function sendMessage(text) {
     hideHero();
     appendUser(text);
     conversation.push({ role: "user", text });
-
-    // Clear + reset composer (only on successful submit, not on failure path).
-    inputEl.value = "";
-    autoGrow();
-    updateCounter();
-
+    inputEl.value = ""; autoGrow(); updateCounter();
     runRequest(text);
   }
 
   async function runRequest(userText) {
-    inFlight = true;
-    refreshSendState();
-
-    const { body } = makeBotTurn();
-    showTyping(body);
+    inFlight = true; refreshSendState();
+    const { bubble, col } = makeBotTurn();
+    showTyping(bubble);
 
     const memory = buildMemory();
     const controller = new AbortController();
@@ -798,44 +473,29 @@
         signal: controller.signal,
       });
       clearTimeout(timer);
-
       if (!res.ok) throw new Error("HTTP " + res.status);
-
       const data = await res.json();
       const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());
-      const reply = hasReply
-        ? data.reply
-        : "I’m sorry — I didn’t catch that. Could you try rephrasing?";
-
-      renderReply(body, reply);
-      // Only record real answers in memory; don't pollute context with the fallback.
+      const reply = hasReply ? data.reply : "I’m sorry — I didn’t catch that. Could you try rephrasing?";
+      renderReply(bubble, col, reply);
       if (hasReply) conversation.push({ role: "bot", text: reply });
     } catch (err) {
       clearTimeout(timer);
-      renderError(body, userText);
-      // Do not push a bot turn into memory on failure.
+      renderError(bubble, col, userText);
     } finally {
-      inFlight = false;
-      refreshSendState();
+      inFlight = false; refreshSendState();
     }
   }
 
-  // ============================================================
-  // Keep the empty-state centered as the composer grows (no magic numbers)
-  // ============================================================
+  // Keep welcome centered as composer grows
   if (window.ResizeObserver && dockEl) {
     const ro = new ResizeObserver((entries) => {
-      for (const e of entries) {
-        document.documentElement.style.setProperty("--dock-h", Math.round(e.contentRect.height) + "px");
-      }
+      for (const e of entries) document.documentElement.style.setProperty("--dock-h", Math.round(e.contentRect.height) + "px");
     });
     ro.observe(dockEl);
   }
 
-  // Init
-  updateCounter();
-  refreshSendState();
-  autoGrow();
+  updateCounter(); refreshSendState(); autoGrow();
 </script>
 </body>
 </html>
