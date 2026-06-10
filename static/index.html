@@ -1,319 +1,840 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>School Chatbot</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Brentwood Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+     LOCKED VISUAL SYSTEM — Apple design language
+     Conversational Compact direction
+     ============================================================ */
+  :root {
+    /* Accent — single Action Blue carries every interactive element */
+    --primary: #0066cc;
+    --primary-focus: #0071e3;
+    --primary-on-dark: #2997ff;
 
-  <style>
-    :root {
-      --bg: #000;
-      --panel: #0b0b0b;
-      --panel2: #111;
-      --border: #222;
-      --text: #fff;
-      --muted: #a3a3a3;
-      --me: #1f2937;
-      --bot: #111827;
-      --accent: #3b82f6;
-    }
+    /* Surfaces */
+    --canvas: #ffffff;
+    --canvas-parchment: #f5f5f7;
+    --surface-pearl: #fafafc;
 
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
+    /* Ink */
+    --ink: #1d1d1f;
+    --ink-muted-80: #333333;
+    --ink-muted-48: #7a7a7a;
 
-    .app {
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      max-width: 720px;
-      margin: 0 auto;
-    }
+    /* Lines */
+    --hairline: #e0e0e0;
+    --divider-soft: rgba(0, 0, 0, 0.04);
+    --input-ring: rgba(0, 0, 0, 0.08);
 
-    .header {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: rgba(0,0,0,0.85);
-      backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 14px 12px;
-    }
-    .title {
-      font-size: 16px;
-      font-weight: 700;
-      margin: 0;
-    }
-    .subtitle {
-      margin: 4px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-    }
+    /* Frosted glass fill (header + composer) */
+    --frost: rgba(245, 245, 247, 0.80);
 
-    #chat {
-      flex: 1;
-      overflow-y: auto;
-      padding: 14px;
-      background: linear-gradient(180deg, #000 0%, #050505 100%);
-      scroll-behavior: smooth;
-    }
+    /* User bubble — neutral white so Action Blue stays the only accent */
+    --bubble-user: #ffffff;
 
-    /* --- Animations --- */
-    .row {
-      display: flex;
-      margin: 10px 0;
-      animation: msgPop 0.25s ease-out;
-    }
-    @keyframes msgPop {
-      from { opacity: 0; transform: translateY(8px) scale(0.98); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
+    /* Warning (counter only — derived from system red, not a brand accent) */
+    --warn: #b3261e;
 
-    .row.me { justify-content: flex-end; }
-    .row.bot { justify-content: flex-start; }
+    /* Type families */
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Inter", sans-serif;
+    --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Inter", sans-serif;
 
-    .bubble {
-      max-width: min(560px, 86%);
-      padding: 10px 14px;
-      border-radius: 18px; /* Slightly rounder like IG */
-      border: 1px solid var(--border);
-      background: var(--panel2);
-      line-height: 1.4;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      font-size: 16px;
-    }
-    .row.me .bubble {
-      background: var(--me);
-      border-color: #2b2b2b;
-      border-bottom-right-radius: 4px;
-    }
-    .row.bot .bubble {
-      background: var(--bot);
-      border-color: #1f2937;
-      border-bottom-left-radius: 4px;
-    }
+    /* Spacing — 8px base */
+    --xxs: 4px;
+    --xs: 8px;
+    --sm: 12px;
+    --md: 17px;
+    --lg: 24px;
+    --xl: 32px;
+    --xxl: 48px;
 
-    /* --- Wavy Typing Indicator --- */
-    .typing-container {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 6px 0;
-    }
-    .typing-dot {
-      width: 6px;
-      height: 6px;
-      background: #71717a;
-      border-radius: 50%;
-      animation: wave 1.3s infinite ease-in-out;
-    }
-    .typing-dot:nth-child(2) { animation-delay: 0.15s; }
-    .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+    /* Radii */
+    --r-sm: 8px;
+    --r-md: 11px;
+    --r-lg: 18px;
+    --r-pill: 9999px;
 
-    @keyframes wave {
-      0%, 60%, 100% { transform: translateY(0); }
-      30% { transform: translateY(-5px); }
-    }
+    /* Chat column */
+    --col: 720px;
 
-    .composer {
-      position: sticky;
-      bottom: 0;
-      z-index: 10;
-      background: rgba(0,0,0,0.9);
-      backdrop-filter: blur(8px);
-      border-top: 1px solid var(--border);
-      padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
-    }
+    /* Measured composer height (set via ResizeObserver) */
+    --dock-h: 96px;
+  }
 
-    .composer-inner {
-      display: flex;
-      gap: 10px;
-      align-items: flex-end;
-    }
+  * { box-sizing: border-box; }
 
-    textarea {
-      flex: 1;
-      min-height: 44px;
-      max-height: 120px;
-      padding: 12px 16px;
-      font-size: 16px;
-      background: #18181b;
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 22px; /* Pill shaped like IG */
-      resize: none;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    textarea:focus {
-      border-color: var(--accent);
-    }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
 
-    .right {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      align-items: center;
-      min-width: 60px;
-    }
+  body {
+    font-family: var(--font-text);
+    font-size: 17px;
+    line-height: 1.47;
+    letter-spacing: -0.374px;
+    color: var(--ink);
+    background: var(--canvas-parchment);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
 
-    button {
-      background: transparent;
-      color: var(--accent);
-      border: none;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      padding: 8px;
-    }
-    button:disabled {
-      color: #3f3f46;
-      cursor: not-allowed;
-    }
+  /* ============================================================
+     APP SHELL — full-height thread, sticky frosted composer
+     ============================================================ */
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    min-height: 100dvh;
+  }
 
-    #charCount {
-      font-size: 10px;
-      color: var(--muted);
-    }
-    #charCount.warning { color: #ef4444; }
+  /* Slim quiet top bar — frosted parchment (restraint over a black bar) */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    height: 44px;
+    background: var(--frost);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--divider-soft);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .topbar__title {
+    font-family: var(--font-text);
+    font-size: 15px;
+    line-height: 1;
+    letter-spacing: -0.2px;
+    font-weight: 600;
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--xs);
+  }
+  .topbar__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
 
-    @media (min-width: 768px) {
-      .header { padding: 16px 18px 14px; }
-      #chat { padding: 18px; }
-      .composer { padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); }
-    }
-  </style>
+  /* ---- Scrolling thread region ---- */
+  .thread-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  .thread {
+    width: 100%;
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: var(--lg) var(--lg) var(--xl);
+  }
+
+  /* ============================================================
+     EMPTY / FIRST-SCREEN STATE — hero pulled toward center
+     ============================================================ */
+  .hero {
+    min-height: calc(100dvh - 44px - var(--dock-h));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: var(--xl) 0 var(--lg);
+    gap: var(--md);
+  }
+  .hero.is-hidden { display: none; }
+
+  .hero__crest {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--xs);
+  }
+  .hero__crest svg { width: 26px; height: 26px; }
+
+  .hero__title {
+    font-family: var(--font-display);
+    font-size: 40px;
+    line-height: 1.10;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+    margin: 0;
+    color: var(--ink);
+  }
+  .hero__scope {
+    font-family: var(--font-text);
+    font-size: 21px;
+    line-height: 1.4;
+    letter-spacing: 0;
+    font-weight: 300;
+    color: var(--ink-muted-80);
+    max-width: 36ch;
+    margin: 0;
+  }
+
+  /* Capability hint chips — disappear after first message */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--xs);
+    margin-top: var(--sm);
+    max-width: 600px;
+  }
+  .chip {
+    font-family: var(--font-text);
+    font-size: 14px;
+    line-height: 1.29;
+    letter-spacing: -0.224px;
+    font-weight: 400;
+    color: var(--primary);
+    background: var(--canvas);
+    border: 1px solid var(--input-ring);
+    border-radius: var(--r-pill);
+    padding: 11px 17px;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease;
+    min-height: 44px;
+  }
+  .chip:hover { background: var(--surface-pearl); border-color: var(--primary); }
+  .chip:active { transform: scale(0.95); }
+  .chip:focus-visible {
+    outline: 2px solid var(--primary-focus);
+    outline-offset: 2px;
+  }
+
+  /* ============================================================
+     MESSAGE THREAD — asymmetric turns
+     ============================================================ */
+  .turn { display: flex; margin-bottom: var(--lg); }
+  .turn--user { justify-content: flex-end; }
+  .turn--bot { justify-content: flex-start; }
+
+  /* User: compact neutral bubble (white + hairline lifts it off parchment) */
+  .bubble-user {
+    max-width: 80%;
+    background: var(--bubble-user);
+    border: 1px solid var(--hairline);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.47;
+    letter-spacing: -0.374px;
+    padding: 11px 17px;
+    border-radius: var(--r-lg);
+    border-bottom-right-radius: var(--r-sm);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* Bot: full-width borderless plain text */
+  .bot-wrap {
+    width: 100%;
+    display: flex;
+    gap: var(--sm);
+    align-items: flex-start;
+  }
+  .bot-glyph {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .bot-glyph svg { width: 15px; height: 15px; }
+
+  .bot-body { flex: 1 1 auto; min-width: 0; }
+  .bot-text {
+    font-size: 17px;
+    line-height: 1.5;
+    letter-spacing: -0.374px;
+    color: var(--ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 0;
+  }
+
+  /* Copy action under bot reply */
+  .bot-actions {
+    margin-top: var(--xs);
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .turn--bot:hover .bot-actions,
+  .turn--bot:focus-within .bot-actions {
+    height: auto;
+    opacity: 1;
+  }
+  .copy-btn {
+    font-family: var(--font-text);
+    font-size: 14px;
+    letter-spacing: -0.224px;
+    font-weight: 400;
+    color: var(--primary);
+    background: transparent;
+    border: none;
+    padding: 6px 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .copy-btn:active { transform: scale(0.95); }
+  .copy-btn:focus-visible {
+    outline: 2px solid var(--primary-focus);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+  }
+  .copy-btn svg { width: 14px; height: 14px; }
+
+  /* Typing indicator — three dots in bot position */
+  .typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 2px;
+  }
+  .typing span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ink-muted-48);
+    animation: bounce 1.2s infinite ease-in-out both;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.18s; }
+  .typing span:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Inline error notice — bot-styled */
+  .notice {
+    font-size: 17px;
+    line-height: 1.5;
+    letter-spacing: -0.374px;
+    color: var(--ink-muted-80);
+  }
+  .notice__retry {
+    margin-top: var(--sm);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-text);
+    font-size: 14px;
+    letter-spacing: -0.224px;
+    color: var(--primary);
+    background: transparent;
+    border: 1px solid var(--primary);
+    border-radius: var(--r-pill);
+    padding: 8px 15px;
+    cursor: pointer;
+    min-height: 36px;
+  }
+  .notice__retry:active { transform: scale(0.95); }
+  .notice__retry:focus-visible {
+    outline: 2px solid var(--primary-focus);
+    outline-offset: 2px;
+  }
+
+  /* ============================================================
+     COMPOSER — sticky frosted glass, bottom
+     ============================================================ */
+  .composer-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    flex: 0 0 auto;
+    background: var(--frost);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid var(--divider-soft);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .composer {
+    width: 100%;
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: var(--sm) var(--lg) var(--xs);
+  }
+  .composer__field {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--xs);
+    background: var(--canvas);
+    border: 1px solid var(--input-ring);
+    border-radius: var(--r-lg);
+    padding: 6px 6px 6px 18px;
+    transition: border-color 0.18s ease;
+  }
+  .composer__field:focus-within {
+    border-color: var(--primary);
+  }
+
+  textarea#input {
+    flex: 1 1 auto;
+    resize: none;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--font-text);
+    font-size: 17px;
+    line-height: 1.47;
+    letter-spacing: -0.374px;
+    color: var(--ink);
+    padding: 9px 0;
+    max-height: 132px; /* ~5-6 lines */
+    overflow-y: auto;
+  }
+  textarea#input::placeholder { color: var(--ink-muted-48); }
+
+  /* Circular send button */
+  .send {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.18s ease, opacity 0.18s ease;
+  }
+  .send svg { width: 20px; height: 20px; }
+  .send:not(:disabled):active { transform: scale(0.95); }
+  .send:focus-visible {
+    outline: 2px solid var(--primary-focus);
+    outline-offset: 2px;
+  }
+  .send:disabled {
+    background: var(--ink-muted-48);
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  /* Meta row — hint + char counter */
+  .composer__meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--sm);
+    padding: var(--xxs) var(--xxs) 0;
+    min-height: 18px;
+  }
+  .composer__hint {
+    font-family: var(--font-text);
+    font-size: 12px;
+    line-height: 1;
+    letter-spacing: -0.12px;
+    color: var(--ink-muted-48);
+  }
+  .counter {
+    font-family: var(--font-text);
+    font-size: 12px;
+    line-height: 1;
+    letter-spacing: -0.12px;
+    color: var(--ink-muted-48);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .counter.is-warn { color: var(--warn); }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 640px) {
+    .thread { padding: var(--md) var(--md) var(--lg); }
+    .hero__title { font-size: 34px; }
+    .hero__scope { font-size: 19px; }
+    .composer { padding: var(--xs) var(--md) var(--xxs); }
+    .bubble-user { max-width: 85%; }
+    .composer__hint { display: none; } /* touch users don't use Enter-to-send */
+    .composer__meta { justify-content: flex-end; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .thread-scroll { scroll-behavior: auto; }
+    .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
+    .chip:active, .send:not(:disabled):active, .copy-btn:active, .notice__retry:active { transform: none; }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap; border: 0;
+  }
+</style>
 </head>
-
 <body>
   <div class="app">
-    <div class="header">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div>
-          <h1 class="title">School Chatbot</h1>
-          <p class="subtitle">Ask about meals, schedule, or dorm rules</p>
-        </div>
-        <a href="YOUR_GOOGLE_FORM_LINK" target="_blank" style="font-size:12px; padding:8px 12px; border-radius:999px; border:1px solid #222; color:white; text-decoration:none; background:rgba(255,255,255,0.06);">Feedback</a>
-      </div>
-    </div>
+    <!-- Quiet slim header (frosted parchment) -->
+    <header class="topbar">
+      <span class="topbar__title">
+        <span class="topbar__dot" aria-hidden="true"></span>
+        Brentwood Assistant
+      </span>
+    </header>
 
-    <div id="chat"></div>
+    <!-- Scrolling thread -->
+    <main class="thread-scroll" id="scroll">
+      <div class="thread">
+        <!-- Empty state hero -->
+        <section class="hero" id="hero">
+          <div class="hero__crest" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary)">
+              <path d="M12 3 4 7v6c0 4.5 3.4 7.3 8 8 4.6-.7 8-3.5 8-8V7l-8-4Z"/>
+            </svg>
+          </div>
+          <h1 class="hero__title">Brentwood Assistant</h1>
+          <p class="hero__scope">Ask me about meals, your class schedule, or dorm sign-in and curfew times.</p>
 
-    <div class="composer">
-      <div class="composer-inner">
-        <textarea id="msg" rows="1" placeholder="Message..."></textarea>
-        <div class="right">
-          <button id="sendBtn">Send</button>
-          <div id="charCount">0/200</div>
-        </div>
+          <div class="chips" id="chips" role="group" aria-label="Suggested questions">
+            <button class="chip" type="button">What&rsquo;s for lunch today?</button>
+            <button class="chip" type="button">When does study hall start tonight?</button>
+            <button class="chip" type="button">What time is dorm sign-in on a weeknight?</button>
+            <button class="chip" type="button">What&rsquo;s my next class?</button>
+            <button class="chip" type="button">What time is weekend curfew?</button>
+          </div>
+        </section>
+
+        <!-- Live conversation log -->
+        <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
       </div>
+    </main>
+
+    <!-- Sticky frosted composer -->
+    <div class="composer-dock">
+      <form class="composer" id="form">
+        <div class="composer__field">
+          <label for="input" class="sr-only">Message Brentwood Assistant</label>
+          <textarea id="input" rows="1" maxlength="500"
+            placeholder="Ask about meals, your schedule, or dorm sign-in&hellip;"
+            aria-describedby="counter"></textarea>
+          <button class="send" id="send" type="submit" aria-label="Send" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
+            </svg>
+          </button>
+        </div>
+        <div class="composer__meta">
+          <span class="composer__hint">Enter to send &middot; Shift+Enter for a new line</span>
+          <span class="counter" id="counter" aria-live="off">0/500</span>
+        </div>
+      </form>
     </div>
   </div>
 
-  <script>
-    const input = document.getElementById("msg");
-    const chat = document.getElementById("chat");
-    const counter = document.getElementById("charCount");
-    const sendBtn = document.getElementById("sendBtn");
+<script>
+  // ============================================================
+  // API contract
+  // The Flask backend (app.py) serves @app.route("/chat", POST).
+  // If deployed behind nginx that proxies "/api", change to "/api/chat".
+  // POST { message, memory } -> { reply }
+  // ============================================================
+  const API_ENDPOINT = "/chat";
+  const MAX_CHARS = 500;
+  const WARN_AT = 450;
+  const REQUEST_TIMEOUT_MS = 18000;
 
-    const MAX_CHARS = 200;
-    sendBtn.disabled = true;
+  // Conversation lives only in memory — never localStorage.
+  // Each item: { role: "user" | "bot", text: "..." }
+  const conversation = [];
 
-    function getMemory() {
-      const history = JSON.parse(localStorage.getItem("chatMemory") || "[]");
-      return history.slice(-6).join("\n");
+  // --- Elements ---
+  const scrollEl  = document.getElementById("scroll");
+  const heroEl    = document.getElementById("hero");
+  const chipsEl   = document.getElementById("chips");
+  const logEl     = document.getElementById("log");
+  const formEl    = document.getElementById("form");
+  const inputEl   = document.getElementById("input");
+  const sendEl    = document.getElementById("send");
+  const counterEl = document.getElementById("counter");
+  const dockEl    = document.querySelector(".composer-dock");
+
+  let inFlight = false;
+
+  // --- SVG helpers (static, trusted markup only) ---
+  const ICON_BOT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary)"><path d="M12 3 4 7v6c0 4.5 3.4 7.3 8 8 4.6-.7 8-3.5 8-8V7l-8-4Z"/></svg>';
+  const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  const ICON_RETRY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+
+  // ============================================================
+  // Composer behavior
+  // ============================================================
+  function autoGrow() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px";
+  }
+
+  function updateCounter() {
+    const n = inputEl.value.length;
+    counterEl.textContent = n + "/" + MAX_CHARS;
+    counterEl.classList.toggle("is-warn", n >= WARN_AT);
+  }
+
+  function refreshSendState() {
+    const hasText = inputEl.value.trim().length > 0;
+    sendEl.disabled = !hasText || inFlight;
+  }
+
+  inputEl.addEventListener("input", () => {
+    // Guard programmatic / paste paths that can exceed maxlength.
+    if (inputEl.value.length > MAX_CHARS) {
+      inputEl.value = inputEl.value.slice(0, MAX_CHARS);
     }
+    autoGrow();
+    updateCounter();
+    refreshSendState();
+  });
 
-    function saveMemory(user, bot) {
-      const history = JSON.parse(localStorage.getItem("chatMemory") || "[]");
-      history.push(`User: ${user}`, `Assistant: ${bot}`);
-      localStorage.setItem("chatMemory", JSON.stringify(history.slice(-6)));
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      formEl.requestSubmit();
     }
+  });
 
-    function addMessage(role, text, isTyping = false) {
-      const row = document.createElement("div");
-      row.className = `row ${role}`;
+  formEl.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = inputEl.value.trim();
+    if (!text || inFlight) return;
+    sendMessage(text);
+  });
 
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      
-      if (isTyping) {
-        bubble.innerHTML = `
-          <div class="typing-container">
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-          </div>
-        `;
-      } else {
-        bubble.textContent = text;
-      }
+  // Chips: prefill + immediately send, then never return.
+  chipsEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".chip");
+    if (!btn || inFlight) return;
+    sendMessage(btn.textContent.trim());
+  });
 
-      row.appendChild(bubble);
-      chat.appendChild(row);
-      chat.scrollTop = chat.scrollHeight;
-      return row; // Return the row so we can remove it later
+  // ============================================================
+  // Rendering — always textContent / text nodes (no innerHTML for model output)
+  // ============================================================
+  function hideHero() {
+    if (!heroEl.classList.contains("is-hidden")) {
+      heroEl.classList.add("is-hidden");
     }
+  }
 
-    function autosize() {
-      input.style.height = "auto";
-      input.style.height = Math.min(input.scrollHeight, 120) + "px";
-    }
+  function scrollToBottom() {
+    requestAnimationFrame(() => {
+      scrollEl.scrollTop = scrollEl.scrollHeight;
+    });
+  }
 
-    input.addEventListener("input", () => {
-      if (input.value.length > MAX_CHARS) input.value = input.value.slice(0, MAX_CHARS);
-      autosize();
-      const len = input.value.length;
-      counter.textContent = `${len}/${MAX_CHARS}`;
-      counter.classList.toggle("warning", len >= MAX_CHARS);
-      sendBtn.disabled = (len === 0);
+  function appendUser(text) {
+    const turn = document.createElement("div");
+    turn.className = "turn turn--user";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble-user";
+    bubble.textContent = text; // safe
+    turn.appendChild(bubble);
+    logEl.appendChild(turn);
+    scrollToBottom();
+  }
+
+  function makeBotTurn() {
+    const turn = document.createElement("div");
+    turn.className = "turn turn--bot";
+    const wrap = document.createElement("div");
+    wrap.className = "bot-wrap";
+
+    const glyph = document.createElement("div");
+    glyph.className = "bot-glyph";
+    glyph.setAttribute("aria-hidden", "true");
+    glyph.innerHTML = ICON_BOT; // static trusted markup
+
+    const body = document.createElement("div");
+    body.className = "bot-body";
+
+    wrap.appendChild(glyph);
+    wrap.appendChild(body);
+    turn.appendChild(wrap);
+    logEl.appendChild(turn);
+    return { turn, body };
+  }
+
+  function showTyping(body) {
+    const t = document.createElement("div");
+    t.className = "typing";
+    t.setAttribute("role", "status");
+    t.setAttribute("aria-label", "Brentwood Assistant is typing");
+    t.innerHTML = "<span></span><span></span><span></span>";
+    body.appendChild(t);
+    scrollToBottom();
+  }
+
+  function renderReply(body, text) {
+    body.textContent = ""; // also removes the typing indicator
+    const p = document.createElement("p");
+    p.className = "bot-text";
+    p.textContent = text; // safe; CSS pre-wrap renders \n and simple lists
+
+    const actions = document.createElement("div");
+    actions.className = "bot-actions";
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "copy-btn";
+    copyBtn.innerHTML = ICON_COPY + "<span>Copy</span>";
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard?.writeText(text).then(() => {
+        const label = copyBtn.querySelector("span");
+        const prev = label.textContent;
+        label.textContent = "Copied";
+        setTimeout(() => { label.textContent = prev; }, 1400);
+      });
+    });
+    actions.appendChild(copyBtn);
+
+    body.appendChild(p);
+    body.appendChild(actions);
+    scrollToBottom();
+  }
+
+  function renderError(body, lastUserText) {
+    body.textContent = ""; // also removes the typing indicator
+    const p = document.createElement("p");
+    p.className = "bot-text notice";
+    p.textContent = "Sorry, I couldn’t reach the server. Please try again.";
+
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "notice__retry";
+    retry.innerHTML = ICON_RETRY + "<span>Try again</span>";
+    retry.addEventListener("click", () => {
+      if (inFlight) return;
+      // Remove this failed bot turn, then re-send the same message.
+      const turn = body.closest(".turn");
+      if (turn) turn.remove();
+      runRequest(lastUserText);
     });
 
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        send();
+    body.appendChild(p);
+    body.appendChild(retry);
+    scrollToBottom();
+  }
+
+  // ============================================================
+  // Memory — the ~3 turns PRIOR to the in-flight message
+  // ============================================================
+  function buildMemory() {
+    // Exclude the last entry: it's the current user message, sent separately
+    // as `message`. Including it would duplicate the turn in context.
+    const prior = conversation.slice(0, -1);
+    const recent = prior.slice(-6); // ~3 user/bot pairs
+    return recent
+      .map(t => (t.role === "user" ? "Student" : "Assistant") + ": " + t.text)
+      .join("\n");
+  }
+
+  // ============================================================
+  // Send flow
+  // ============================================================
+  function sendMessage(text) {
+    hideHero();
+    appendUser(text);
+    conversation.push({ role: "user", text });
+
+    // Clear + reset composer (only on successful submit, not on failure path).
+    inputEl.value = "";
+    autoGrow();
+    updateCounter();
+
+    runRequest(text);
+  }
+
+  async function runRequest(userText) {
+    inFlight = true;
+    refreshSendState();
+
+    const { body } = makeBotTurn();
+    showTyping(body);
+
+    const memory = buildMemory();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(API_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userText, memory }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (!res.ok) throw new Error("HTTP " + res.status);
+
+      const data = await res.json();
+      const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());
+      const reply = hasReply
+        ? data.reply
+        : "I’m sorry — I didn’t catch that. Could you try rephrasing?";
+
+      renderReply(body, reply);
+      // Only record real answers in memory; don't pollute context with the fallback.
+      if (hasReply) conversation.push({ role: "bot", text: reply });
+    } catch (err) {
+      clearTimeout(timer);
+      renderError(body, userText);
+      // Do not push a bot turn into memory on failure.
+    } finally {
+      inFlight = false;
+      refreshSendState();
+    }
+  }
+
+  // ============================================================
+  // Keep the empty-state centered as the composer grows (no magic numbers)
+  // ============================================================
+  if (window.ResizeObserver && dockEl) {
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        document.documentElement.style.setProperty("--dock-h", Math.round(e.contentRect.height) + "px");
       }
     });
+    ro.observe(dockEl);
+  }
 
-    async function send() {
-      const message = input.value.trim();
-      if (!message || message.length > MAX_CHARS) return;
-
-      addMessage("me", message);
-      input.value = "";
-      autosize();
-      sendBtn.disabled = true;
-
-      // Show the wavy typing animation
-      const loadingRow = addMessage("bot", null, true);
-
-      try {
-        const res = await fetch("/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, memory: getMemory() })
-        });
-
-        const data = await res.json();
-        loadingRow.remove(); // Remove the dots
-
-        const reply = data.reply ?? "(no reply)";
-        addMessage("bot", reply);
-        saveMemory(message, reply);
-      } catch (err) {
-        loadingRow.remove();
-        addMessage("bot", "Something went wrong. Please try again.");
-      }
-    }
-
-    addMessage("bot", "Hey! Ask me about today’s meals, academic blocks, or dorm rules 🙂");
-  </script>
+  // Init
+  updateCounter();
+  refreshSendState();
+  autoGrow();
+</script>
 </body>
 </html>
