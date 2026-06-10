@@ -71,14 +71,16 @@ def init_db():
             menu_content TEXT NOT NULL
         );
 
-        CREATE TABLE DayTimeline (
-            timeline_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            day_id INTEGER NOT NULL,
+        -- Block schedule, keyed by actual DATE (blocks rotate week to week).
+        -- Populated by sync_schedule.py from the MySchool iCal feed, not seeded here.
+        CREATE TABLE ScheduleTimeline (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sched_date TEXT NOT NULL,
             item_type TEXT NOT NULL,
-            block_id INTEGER,
+            block_code TEXT,
             start_time TEXT NOT NULL,
             end_time TEXT NOT NULL,
-            item_order REAL NOT NULL
+            item_order INTEGER NOT NULL
         );
 
         CREATE TABLE DormRuleTypes (
@@ -202,48 +204,8 @@ def init_db():
                       AND meal_type_id = (SELECT meal_type_id FROM MealTypes WHERE type_name = ?)
                 """, (content, day_id, group_id, mtype))
 
-    # ---------------------------
-    # DayTimeline (optional - keep your previous style, Sunday can be empty)
-    # ---------------------------
-    block_orders = {
-        1: ["A", "B", "C"],
-        2: ["D", "E", "F"],
-        3: ["C", "A", "B"],
-        4: ["F", "D", "E"],
-        5: ["B", "C", "A"],
-        6: ["D", "E", "F"],
-        # 7 (Sunday): no academic blocks in this simple dataset
-    }
-
-    for d_id, b_codes in block_orders.items():
-        for i, code in enumerate(b_codes):
-            cur.execute("""
-                INSERT INTO DayTimeline(day_id, item_type, block_id, start_time, end_time, item_order)
-                VALUES (?, 'BLOCK', (SELECT block_id FROM Blocks WHERE block_code=?), '00:00', '00:00', ?)
-            """, (d_id, code, i + 1))
-
-    # Time updates (same as your old logic)
-    cur.execute("UPDATE DayTimeline SET start_time='08:15', end_time='09:35' WHERE item_type='BLOCK' AND item_order=1 AND day_id IN (1,2,4,5)")
-    cur.execute("UPDATE DayTimeline SET start_time='10:25', end_time='11:45' WHERE item_type='BLOCK' AND item_order=2 AND day_id IN (1,2,4,5)")
-    cur.execute("UPDATE DayTimeline SET start_time='11:55', end_time='13:15' WHERE item_type='BLOCK' AND item_order=3 AND day_id IN (1,2,4,5)")
-    cur.execute("UPDATE DayTimeline SET start_time='09:30', end_time='10:35' WHERE item_type='BLOCK' AND item_order=1 AND day_id=3")
-    cur.execute("UPDATE DayTimeline SET start_time='10:55', end_time='12:00' WHERE item_type='BLOCK' AND item_order=2 AND day_id=3")
-    cur.execute("UPDATE DayTimeline SET start_time='12:10', end_time='13:15' WHERE item_type='BLOCK' AND item_order=3 AND day_id=3")
-    cur.execute("UPDATE DayTimeline SET start_time='10:15', end_time='11:00' WHERE item_type='BLOCK' AND item_order=1 AND day_id=6")
-    cur.execute("UPDATE DayTimeline SET start_time='11:10', end_time='11:55' WHERE item_type='BLOCK' AND item_order=2 AND day_id=6")
-    cur.execute("UPDATE DayTimeline SET start_time='12:05', end_time='12:50' WHERE item_type='BLOCK' AND item_order=3 AND day_id=6")
-
-    # Some events
-    for d in [1, 2, 4, 5]:
-        itype = "ADVISORY" if d == 1 else ("ASSEMBLY" if d == 4 else "COOKIE_BREAK")
-        cur.execute("""
-            INSERT INTO DayTimeline(day_id, item_type, start_time, end_time, item_order)
-            VALUES (?, ?, '09:55', '10:20', 1.5)
-        """, (d, itype))
-    cur.execute("""
-        INSERT INTO DayTimeline(day_id, item_type, start_time, end_time, item_order)
-        VALUES (3, 'COOKIE_BREAK', '10:35', '10:55', 1.5)
-    """)
+    # ScheduleTimeline is left empty here; sync_schedule.py fills it from the
+    # live iCal feed (block order rotates by date, so it can't be seeded).
 
     # ---------------------------
     # Dorm rules

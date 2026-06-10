@@ -4,7 +4,7 @@ from google import genai
 from google.genai import types
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import calendar
 import json
 import uuid
@@ -37,8 +37,41 @@ DAYREF_MAP = {
     "FRIDAY": 5, "SATURDAY": 6, "SUNDAY": 7
 }
 
+def today() -> date:
+    """Current date, overridable via FAKE_TODAY (YYYY-MM-DD) for testing."""
+    override = (os.getenv("FAKE_TODAY") or "").strip()
+    if override:
+        return datetime.strptime(override, "%Y-%m-%d").date()
+    return datetime.now().date()
+
 def get_server_day_id() -> int:
-    return datetime.now().isoweekday()
+    return today().isoweekday()
+
+def resolve_date(day_ref: str, user_msg: str = "") -> date:
+    """Resolve a day_ref to an actual calendar date (blocks rotate, so dates matter)."""
+    base = today()
+    d = (day_ref or "").upper().strip()
+
+    if d == "TODAY" or d == "ANY":
+        return base
+    if d == "TOMORROW":
+        return base + timedelta(days=1)
+    if d == "DAY_AFTER_TOMORROW":
+        return base + timedelta(days=2)
+
+    if d in DAYREF_MAP:
+        target = DAYREF_MAP[d]  # 1=Mon .. 7=Sun
+        delta = (target - base.isoweekday()) % 7
+        return base + timedelta(days=delta)
+
+    # fallback keyword search
+    m = (user_msg or "").lower()
+    for name, did in DAYREF_MAP.items():
+        if name.lower() in m:
+            delta = (did - base.isoweekday()) % 7
+            return base + timedelta(days=delta)
+
+    return base
 
 def resolve_day_id(day_ref: str | None, user_msg: str = "") -> int:
     today = get_server_day_id()
@@ -118,16 +151,15 @@ def fetch_dorm_signins(day_id: int) -> list[dict]:
     conn.close()
     return rows
 
-def fetch_timeline(day_id: int) -> list[dict]:
+def fetch_timeline_by_date(sched_date: str) -> list[dict]:
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
-        SELECT dt.item_type, b.block_code, dt.start_time, dt.end_time, dt.item_order
-        FROM DayTimeline dt
-        LEFT JOIN Blocks b ON dt.block_id = b.block_id
-        WHERE dt.day_id = ?
-        ORDER BY dt.item_order
-    """, (day_id,))
+        SELECT item_type, block_code, start_time, end_time, item_order
+        FROM ScheduleTimeline
+        WHERE sched_date = ?
+        ORDER BY item_order
+    """, (sched_date,))
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
@@ -291,11 +323,12 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "SCHEDULE":
-        rows = fetch_timeline(day_id)
+        sched_date = resolve_date(day_ref, user_msg)
+        rows = fetch_timeline_by_date(sched_date.isoformat())
         return {
             "type": "SCHEDULE",
-            "day_id": day_id,
-            "day_name": day_name,
+            "date": sched_date.isoformat(),
+            "day_name": calendar.day_name[sched_date.weekday()],
             "rows": rows
         }
 

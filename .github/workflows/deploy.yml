@@ -33,6 +33,7 @@ jobs:
             cp db/school.db ~/backups/school.db.deploy.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
             venv/bin/python set_up_db.py
             venv/bin/python sync_menus.py
+            venv/bin/python sync_schedule.py
             sudo systemctl restart chatbot
             sleep 1
             systemctl is-active chatbot
