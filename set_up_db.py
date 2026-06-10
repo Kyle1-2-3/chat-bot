@@ -273,18 +273,17 @@ def init_db():
                 """, (ds_id, BEDTIME_ID, bt))
 
             else:
-                # Sunday: morning dorm sign-in + evening dorm sign-in
-                # ✅ 너가 말한 "morning sign in"을 여기로!
-                morning = "08:30"  # 필요하면 너 실데이터로 바꿔
+                # Sunday: a morning sign-in (no set time) + a night sign-in.
                 cur.execute("""
                     INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
-                    VALUES (?, ?, ?, 1)
-                """, (ds_id, SIGN_IN_ID, morning))
-
-                cur.execute("""
-                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
-                    VALUES (?, ?, '19:15', 2)
+                    VALUES (?, ?, 'morning', 1)
                 """, (ds_id, SIGN_IN_ID))
+
+                night = "20:45" if g == 1 else "21:15"
+                cur.execute("""
+                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
+                    VALUES (?, ?, ?, 2)
+                """, (ds_id, SIGN_IN_ID, night))
 
                 bt = "22:00" if g == 1 else "22:15"
                 cur.execute("""
