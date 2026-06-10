@@ -94,7 +94,7 @@ def test_classify_query_empty_message():
 # /chat orchestration
 # ---------------------------
 def test_chat_answers_compound_question(monkeypatch):
-    monkeypatch.setattr(appmod, "classify_query", lambda msg: [
+    monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
         {"intent": "SCHEDULE", "day_ref": "THURSDAY", "meal_type": None, "confidence": 0.9},
         {"intent": "MEAL", "day_ref": "FRIDAY", "meal_type": "BREAKFAST", "confidence": 0.9},
     ])
@@ -114,7 +114,7 @@ def test_chat_answers_compound_question(monkeypatch):
 
 
 def test_chat_drops_unknown_when_other_intents_present(monkeypatch):
-    monkeypatch.setattr(appmod, "classify_query", lambda msg: [
+    monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
         {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "confidence": 0.0},
         {"intent": "SCHEDULE", "day_ref": "MONDAY", "meal_type": None, "confidence": 0.9},
     ])
@@ -131,7 +131,7 @@ def test_chat_drops_unknown_when_other_intents_present(monkeypatch):
 
 
 def test_chat_all_unknown_falls_back(monkeypatch):
-    monkeypatch.setattr(appmod, "classify_query", lambda msg: [
+    monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
         {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "confidence": 0.0},
     ])
     resp = appmod.app.test_client().post("/chat", json={"message": "asdf"})
@@ -139,7 +139,7 @@ def test_chat_all_unknown_falls_back(monkeypatch):
 
 
 def test_chat_greeting_only_still_greets(monkeypatch):
-    monkeypatch.setattr(appmod, "classify_query", lambda msg: [
+    monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
         {"intent": "GREETING", "day_ref": "ANY", "meal_type": None, "confidence": 0.9},
     ])
     captured = {}

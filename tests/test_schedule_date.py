@@ -81,7 +81,7 @@ def test_fetch_timeline_by_date(monkeypatch, tmp_path):
 # ---------------------------
 def test_chat_schedule_uses_resolved_date(monkeypatch):
     monkeypatch.setattr(appmod, "today", lambda: date(2026, 4, 20))
-    monkeypatch.setattr(appmod, "classify_query", lambda msg: [
+    monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
         {"intent": "SCHEDULE", "day_ref": "TOMORROW", "meal_type": None, "confidence": 0.9},
     ])
     monkeypatch.setattr(appmod, "fetch_timeline_by_date",

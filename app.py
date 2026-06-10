@@ -200,6 +200,9 @@ Rules for each request:
 - Use meal_type only when relevant
 - Use day_ref=ANY if no day is specified
 - "tmr" means tomorrow; "the day after tmr/tomorrow" => DAY_AFTER_TOMORROW
+- If [Recent conversation] is given, use it to resolve follow-ups: a vague
+  message like "what about tomorrow" or "and dinner?" carries over the
+  previous intent and meal_type, changing only what the user newly specified.
 - Compound example: "block order tmr and breakfast the day after tmr"
   => requests: [ {intent SCHEDULE, day_ref TOMORROW}, {intent MEAL, meal_type BREAKFAST, day_ref DAY_AFTER_TOMORROW} ]
 """
@@ -251,11 +254,13 @@ def validate_request(obj: dict) -> dict:
         "confidence": confidence
     }
 
-def classify_query(user_msg: str) -> list[dict]:
+def classify_query(user_msg: str, memory: str = "") -> list[dict]:
     if not user_msg or not user_msg.strip():
         return [dict(UNKNOWN_REQUEST)]
 
-    prompt = f"[User Message]\n{user_msg}\n\nReturn JSON only."
+    memory = (memory or "").strip()[:1500]
+    context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
+    prompt = f"{context}[User Message]\n{user_msg}\n\nReturn JSON only."
     try:
         r = client.models.generate_content(
             model="gemini-2.5-flash",
@@ -432,6 +437,7 @@ def chat():
     req_id = str(uuid.uuid4())[:8]
     data = request.get_json(silent=True) or {}
     user_msg = (data.get("message", "") or "").strip()
+    memory = (data.get("memory", "") or "")
 
     if len(user_msg) > 500:
         return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
@@ -439,7 +445,7 @@ def chat():
     if DEBUG:
         print(f"\n[{req_id}] USER: {user_msg}")
 
-    classifications = classify_query(user_msg)
+    classifications = classify_query(user_msg, memory)
 
     if DEBUG:
         print(f"[{req_id}] CLASSIFICATIONS: {json.dumps(classifications, ensure_ascii=False, indent=2)}")

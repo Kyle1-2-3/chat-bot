@@ -441,7 +441,7 @@
   // ---------------- Memory (turns prior to the in-flight message) ----------------
   function buildMemory() {
     const prior = conversation.slice(0, -1);
-    return prior.slice(-6)
+    return prior.slice(-4)
       .map(t => (t.role === "user" ? "Student" : "Assistant") + ": " + t.text)
       .join("\n");
   }
