@@ -211,7 +211,7 @@ UNKNOWN_REQUEST = {
     "confidence": 0.0
 }
 
-MAX_REQUESTS = 3
+MAX_REQUESTS = 6
 
 def validate_request(obj: dict) -> dict:
     intent = str(obj.get("intent", "UNKNOWN")).upper()

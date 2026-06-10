@@ -61,14 +61,28 @@ def test_classify_query_validates_each_request(monkeypatch):
     assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "confidence": 0.0}]
 
 
-def test_classify_query_caps_requests_at_three(monkeypatch):
+def test_classify_query_preserves_four_intents(monkeypatch):
+    # Real failing case: "lunch today and dinner tmr and block order today and house sign-in"
+    patch_llm(monkeypatch, {
+        "requests": [
+            {"intent": "MEAL", "day_ref": "TODAY", "meal_type": "LUNCH", "confidence": 0.9},
+            {"intent": "MEAL", "day_ref": "TOMORROW", "meal_type": "DINNER", "confidence": 0.9},
+            {"intent": "SCHEDULE", "day_ref": "TODAY", "meal_type": None, "confidence": 0.9},
+            {"intent": "SIGNIN_SUMMARY", "day_ref": "TODAY", "meal_type": None, "confidence": 0.9},
+        ]
+    })
+    out = appmod.classify_query("lunch today and dinner tmr and blocks today and house sign in")
+    assert [r["intent"] for r in out] == ["MEAL", "MEAL", "SCHEDULE", "SIGNIN_SUMMARY"]
+
+
+def test_classify_query_caps_requests_at_six(monkeypatch):
     patch_llm(monkeypatch, {
         "requests": [
             {"intent": "MEAL", "day_ref": "MONDAY", "meal_type": "LUNCH", "confidence": 0.9}
-        ] * 5
+        ] * 8
     })
-    out = appmod.classify_query("lunch x5")
-    assert len(out) == 3
+    out = appmod.classify_query("lunch x8")
+    assert len(out) == 6
 
 
 def test_classify_query_empty_message():
