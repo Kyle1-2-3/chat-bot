@@ -153,6 +153,61 @@ def test_apply_replaces_existing_date(conn):
 
 
 # ---------------------------
+# add_cookie_breaks (weekday-recurring, not in iCal)
+# ---------------------------
+def test_cookie_break_monday_morning():
+    by_date = {"2026-04-20": [  # Monday
+        {"item_type": "BLOCK", "block_code": "D", "start_time": "08:15", "end_time": "09:35", "item_order": 1},
+        {"item_type": "ADVISORY", "block_code": None, "start_time": "09:55", "end_time": "10:20", "item_order": 2},
+    ]}
+    ss.add_cookie_breaks(by_date)
+    rows = by_date["2026-04-20"]
+    cb = [r for r in rows if r["item_type"] == "COOKIE_BREAK"]
+    assert len(cb) == 1
+    assert (cb[0]["start_time"], cb[0]["end_time"]) == ("09:35", "09:55")
+    # slots between the 08:15 block and the 09:55 advisory, item_order renumbered
+    assert [(r["item_type"], r["item_order"]) for r in rows] == [
+        ("BLOCK", 1), ("COOKIE_BREAK", 2), ("ADVISORY", 3),
+    ]
+
+
+def test_cookie_break_wednesday_later_slot():
+    by_date = {"2026-04-22": [  # Wednesday
+        {"item_type": "BLOCK", "block_code": "A", "start_time": "08:15", "end_time": "09:35", "item_order": 1},
+    ]}
+    ss.add_cookie_breaks(by_date)
+    cb = [r for r in by_date["2026-04-22"] if r["item_type"] == "COOKIE_BREAK"][0]
+    assert (cb["start_time"], cb["end_time"]) == ("10:35", "10:55")
+
+
+def test_cookie_break_thursday_morning():
+    by_date = {"2026-04-23": [  # Thursday
+        {"item_type": "BLOCK", "block_code": "A", "start_time": "08:15", "end_time": "09:35", "item_order": 1},
+    ]}
+    ss.add_cookie_breaks(by_date)
+    cb = [r for r in by_date["2026-04-23"] if r["item_type"] == "COOKIE_BREAK"][0]
+    assert (cb["start_time"], cb["end_time"]) == ("09:35", "09:55")
+
+
+def test_no_cookie_break_on_other_days():
+    by_date = {
+        "2026-04-21": [{"item_type": "BLOCK", "block_code": "A", "start_time": "08:15", "end_time": "09:35", "item_order": 1}],  # Tuesday
+        "2026-04-24": [{"item_type": "BLOCK", "block_code": "A", "start_time": "08:15", "end_time": "09:35", "item_order": 1}],  # Friday
+    }
+    ss.add_cookie_breaks(by_date)
+    for d in by_date:
+        assert all(r["item_type"] != "COOKIE_BREAK" for r in by_date[d])
+
+
+def test_cookie_break_wired_into_parse_pipeline():
+    by_date = ss.parse_ical(ICS_MONDAY)  # 2026-04-20 Monday
+    ss.add_cookie_breaks(by_date)
+    rows = by_date["2026-04-20"]
+    assert [r["item_type"] for r in rows] == ["BLOCK", "COOKIE_BREAK", "ADVISORY", "BLOCK", "BLOCK"]
+    assert [r["item_order"] for r in rows] == [1, 2, 3, 4, 5]
+
+
+# ---------------------------
 # purge_past + today()
 # ---------------------------
 def insert_date(conn, d):

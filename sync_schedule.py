@@ -109,6 +109,33 @@ def parse_ical(text: str) -> dict[str, list[dict]]:
     return by_date
 
 
+COOKIE_BREAKS = {  # weekday (Mon=0 .. Sun=6) -> (start_time, end_time)
+    0: ("09:35", "09:55"),  # Monday
+    2: ("10:35", "10:55"),  # Wednesday
+    3: ("09:35", "09:55"),  # Thursday
+}
+
+
+def add_cookie_breaks(by_date: dict[str, list[dict]]) -> None:
+    """Inject the weekday-recurring cookie break, which the iCal feed omits.
+    Only school days already in the feed get one; each affected day is then
+    renumbered by time so item_order stays sequential."""
+    for date_key, rows in by_date.items():
+        slot = COOKIE_BREAKS.get(date.fromisoformat(date_key).weekday())
+        if not slot:
+            continue
+        start, end = slot
+        rows.append({
+            "item_type": "COOKIE_BREAK",
+            "block_code": None,
+            "start_time": start,
+            "end_time": end,
+        })
+        rows.sort(key=lambda r: r["start_time"])
+        for i, r in enumerate(rows, start=1):
+            r["item_order"] = i
+
+
 def apply_schedule(conn: sqlite3.Connection, by_date: dict[str, list[dict]]) -> dict:
     """Replace each synced date's timeline rows with the parsed ones."""
     cur = conn.cursor()
@@ -149,6 +176,7 @@ def main():
         raise SystemExit("MSM_ICAL_URL not set in .env")
     text = fetch_ical(source)
     by_date = parse_ical(text)
+    add_cookie_breaks(by_date)
     conn = sqlite3.connect(DB_PATH)
     stats = apply_schedule(conn, by_date)
     purged = purge_past(conn, today())
