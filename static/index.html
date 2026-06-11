@@ -16,7 +16,7 @@
      ============================================================ */
   :root {
     /* Warm dark surfaces */
-    --bg:        #1b1b1d;   /* page */
+    --bg:        #131314;   /* page */
     --surface:   #232529;   /* bot bubble, input, cards */
     --surface-2: #2e3036;   /* hover / secondary */
     --header:    rgba(23, 24, 28, 0.82);
@@ -42,7 +42,7 @@
 
     --font: "Google Sans Text", "Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-    --col: 768px;
+    --col: 680px;
     --dock-h: 96px;
   }
 
@@ -89,8 +89,8 @@
   .app--welcome { justify-content: center; }
   .app--welcome::before {
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background: radial-gradient(115% 75% at 50% 44%,
-      rgba(59,130,246,0.20) 0%, rgba(59,130,246,0.07) 34%, rgba(23,24,28,0) 64%);
+    background: radial-gradient(120% 80% at 50% 42%,
+      rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 36%, rgba(19,19,20,0) 64%);
   }
   .app--welcome .thread-scroll { flex: 0 0 auto; overflow: visible; }
   .app--welcome .thread { padding: 0 16px; }
@@ -191,7 +191,7 @@
     box-shadow: var(--shadow-bubble);
     transition: border-color 0.18s ease;
   }
-  .composer__field:focus-within { border-color: var(--accent); }
+  .composer__field:focus-within { border-color: rgba(255,255,255,0.22); }
   textarea#input {
     flex: 1 1 auto; resize: none; border: none; outline: none; background: transparent;
     font-family: var(--font); font-size: 17px; line-height: 1.5; color: var(--text);
