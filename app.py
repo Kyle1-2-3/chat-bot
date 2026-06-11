@@ -191,6 +191,12 @@ Rules for each request:
 - "today's meals", "what are meals today" => MEALS_DAY
 - "what's for lunch friday" => MEAL
 - "schedule for monday", "what blocks tomorrow" => SCHEDULE
+- A block and the cookie break are daily timeline items. A question about WHEN
+  one happens on a given day — "when is the D block today", "when is the cookie
+  break today", "cookie break time tomorrow" => SCHEDULE for that day (day_ref
+  from the day mentioned, default TODAY). The whole day's timeline is returned
+  and the specific item is read from it. (This is NOT EVENT_SEARCH; EVENT_SEARCH
+  is only for assembly/tutorial/advisory when no day is given.)
 - If user asks whether a specific meal has sign-in, classify as MEAL_SIGNIN
 - If user asks general sign-in time, dorm sign-in, curfew, residence sign-in, or "sign in time for saturday", classify as SIGNIN_SUMMARY
 - If user asks whether a grade is Junior or Senior, or which group a grade is in
