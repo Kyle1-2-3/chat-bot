@@ -6,6 +6,7 @@ DB_PATH = "db/school.db"
 def init_db():
     os.makedirs("db", exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")  # enforce FKs while seeding
     cur = conn.cursor()
 
     # ---------------------------
@@ -38,10 +39,11 @@ def init_db():
             group_name TEXT NOT NULL
         );
 
-        -- optional / not used much, kept for completeness
+        -- individual grade (8..12) -> Junior/Senior group
         CREATE TABLE Grades (
             grade_id INTEGER PRIMARY KEY,
-            group_id INTEGER
+            group_id INTEGER NOT NULL,
+            FOREIGN KEY (group_id) REFERENCES GradeGroups(group_id)
         );
 
         CREATE TABLE MealTypes (
@@ -57,13 +59,18 @@ def init_db():
             meal_type_id INTEGER NOT NULL,
             start_time TEXT NOT NULL,
             end_time TEXT NOT NULL,
-            requires_signin INTEGER NOT NULL DEFAULT 0
+            requires_signin INTEGER NOT NULL DEFAULT 0,
+            UNIQUE (day_id, group_id, meal_type_id),
+            FOREIGN KEY (day_id) REFERENCES Days(day_id),
+            FOREIGN KEY (group_id) REFERENCES GradeGroups(group_id),
+            FOREIGN KEY (meal_type_id) REFERENCES MealTypes(meal_type_id)
         );
 
         CREATE TABLE Menus (
             menu_id INTEGER PRIMARY KEY AUTOINCREMENT,
             schedule_id INTEGER UNIQUE NOT NULL,
-            menu_content TEXT NOT NULL
+            menu_content TEXT NOT NULL,
+            FOREIGN KEY (schedule_id) REFERENCES MealSchedules(schedule_id)
         );
 
         -- Block schedule, keyed by actual DATE (blocks rotate week to week).
@@ -86,7 +93,10 @@ def init_db():
         CREATE TABLE DormSchedules (
             dorm_schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
             day_id INTEGER NOT NULL,
-            group_id INTEGER NOT NULL
+            group_id INTEGER NOT NULL,
+            UNIQUE (day_id, group_id),
+            FOREIGN KEY (day_id) REFERENCES Days(day_id),
+            FOREIGN KEY (group_id) REFERENCES GradeGroups(group_id)
         );
 
         CREATE TABLE DormScheduleRules (
@@ -96,7 +106,9 @@ def init_db():
             start_time TEXT,            -- NULL when the rule has no fixed clock time
             end_time TEXT,
             rule_order INTEGER NOT NULL,
-            note TEXT                   -- human-readable detail for untimed rules
+            note TEXT,                  -- human-readable detail for untimed rules
+            FOREIGN KEY (dorm_schedule_id) REFERENCES DormSchedules(dorm_schedule_id),
+            FOREIGN KEY (rule_type_id) REFERENCES DormRuleTypes(rule_type_id)
         );
     """)
 
@@ -110,6 +122,11 @@ def init_db():
 
     cur.executemany("INSERT INTO GradeGroups(group_id, group_name) VALUES (?, ?)", [
         (1, "Junior"), (2, "Senior")
+    ])
+
+    # Grades 8-10 = Junior, 11-12 = Senior
+    cur.executemany("INSERT INTO Grades(grade_id, group_id) VALUES (?, ?)", [
+        (8, 1), (9, 1), (10, 1), (11, 2), (12, 2)
     ])
 
     # ✅ Meal types include Sunday special

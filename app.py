@@ -133,6 +133,14 @@ def fetch_timeline_by_date(sched_date: str) -> list[dict]:
         ORDER BY item_order
     """, (sched_date,))
 
+def fetch_grade_group(grade: int) -> str | None:
+    rows = query("""
+        SELECT gg.group_name
+        FROM Grades g JOIN GradeGroups gg ON g.group_id = gg.group_id
+        WHERE g.grade_id = ?
+    """, (grade,))
+    return rows[0]["group_name"] if rows else None
+
 # ---------------------------
 # LLM Classifier
 # ---------------------------
@@ -152,9 +160,10 @@ Schema:
 {
   "requests": [
     {
-      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "UNKNOWN",
+      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
-      "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null
+      "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
+      "grade": <integer 8-12 or null>
     }
   ]
 }
@@ -166,6 +175,9 @@ Rules for each request:
 - "schedule for monday", "what blocks tomorrow" => SCHEDULE
 - If user asks whether a specific meal has sign-in, classify as MEAL_SIGNIN
 - If user asks general sign-in time, dorm sign-in, curfew, residence sign-in, or "sign in time for saturday", classify as SIGNIN_SUMMARY
+- If user asks whether a grade is Junior or Senior, or which group a grade is in
+  (e.g. "I'm grade 11, am I junior or senior?"), classify as GRADE_GROUP and put
+  the grade number in "grade" (null if no grade is stated)
 - If the request is unclear => UNKNOWN
 - Use meal_type only when relevant
 - Use day_ref=ANY if no day is specified
@@ -181,11 +193,12 @@ UNKNOWN_REQUEST = {
     "intent": "UNKNOWN",
     "day_ref": "ANY",
     "meal_type": None,
+    "grade": None,
 }
 
 VALID_INTENTS = {
     "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
-    "MEAL_SIGNIN", "SIGNIN_SUMMARY", "UNKNOWN"
+    "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "UNKNOWN"
 }
 VALID_DAYS = {
     "TODAY", "TOMORROW", "DAY_AFTER_TOMORROW", "MONDAY", "TUESDAY",
@@ -201,6 +214,10 @@ def validate_request(obj: dict) -> dict:
     if isinstance(meal_type, str):
         meal_type = meal_type.upper()
 
+    grade = obj.get("grade")
+    if not isinstance(grade, int) or isinstance(grade, bool):
+        grade = None
+
     if intent not in VALID_INTENTS:
         intent = "UNKNOWN"
     if day_ref not in VALID_DAYS:
@@ -212,6 +229,7 @@ def validate_request(obj: dict) -> dict:
         "intent": intent,
         "day_ref": day_ref,
         "meal_type": meal_type,
+        "grade": grade,
     }
 
 def classify_query(user_msg: str, memory: str = "") -> list[dict]:
@@ -308,6 +326,14 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
             "rows": rows
         }
 
+    if intent == "GRADE_GROUP":
+        grade = cls.get("grade")
+        return {
+            "type": "GRADE_GROUP",
+            "grade": grade,
+            "group_name": fetch_grade_group(grade) if grade is not None else None,
+        }
+
     if intent == "SIGNIN_SUMMARY":
         dorm_rows = fetch_dorm_signins(day_id)
         meals = fetch_day_meals(day_id)
@@ -360,6 +386,9 @@ SPECIAL RULES:
   - Show dorm sign-in times.
   - If a dorm sign-in has no start_time but has a "note", state the note instead of a time (do not invent a clock time).
   - Show meal sign-ins that require sign-in.
+- For GRADE_GROUP:
+  - State which group (Junior/Senior) the grade is in using group_name.
+  - If group_name is missing/null, ask the user which grade they are in.
 - For GREETING:
   - Greet back and briefly say what the user can ask.
 

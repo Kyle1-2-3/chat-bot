@@ -59,7 +59,7 @@ def test_classify_query_validates_each_request(monkeypatch):
         ]
     })
     out = appmod.classify_query("hi")
-    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None}]
+    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None}]
 
 
 def test_classify_query_preserves_four_intents(monkeypatch):
@@ -88,7 +88,7 @@ def test_classify_query_caps_requests_at_max(monkeypatch):
 
 def test_classify_query_empty_message():
     out = appmod.classify_query("")
-    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None}]
+    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None}]
 
 
 # ---------------------------
@@ -116,7 +116,7 @@ def test_chat_answers_compound_question(monkeypatch):
 
 def test_chat_drops_unknown_when_other_intents_present(monkeypatch):
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
-        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None},
+        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None},
         {"intent": "SCHEDULE", "day_ref": "MONDAY", "meal_type": None},
     ])
     captured = {}
@@ -133,7 +133,7 @@ def test_chat_drops_unknown_when_other_intents_present(monkeypatch):
 
 def test_chat_all_unknown_falls_back(monkeypatch):
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
-        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None},
+        {"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None},
     ])
     resp = appmod.app.test_client().post("/chat", json={"message": "asdf"})
     assert "not fully sure" in resp.get_json()["reply"]

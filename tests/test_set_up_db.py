@@ -1,6 +1,53 @@
-import importlib
+import sqlite3
+
+import pytest
 
 import set_up_db
+
+
+def _build(tmp_path, monkeypatch):
+    db = tmp_path / "school.db"
+    monkeypatch.setattr(set_up_db, "DB_PATH", str(db))
+    monkeypatch.chdir(tmp_path)
+    set_up_db.init_db()
+    return db
+
+
+def _conn(db):
+    c = sqlite3.connect(db)
+    c.execute("PRAGMA foreign_keys = ON")
+    return c
+
+
+def test_meal_schedule_unique_constraint(tmp_path, monkeypatch):
+    db = _build(tmp_path, monkeypatch)
+    conn = _conn(db)
+    # Monday(1) / Junior(1) / BREAKFAST(1) is already seeded — a duplicate must fail.
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO MealSchedules(day_id,group_id,meal_type_id,start_time,end_time)"
+                     " VALUES (1,1,1,'07:00','07:40')")
+
+
+def test_foreign_key_enforced(tmp_path, monkeypatch):
+    db = _build(tmp_path, monkeypatch)
+    conn = _conn(db)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO MealSchedules(day_id,group_id,meal_type_id,start_time,end_time)"
+                     " VALUES (1,999,1,'07:00','07:40')")  # group_id 999 doesn't exist
+
+
+def test_grades_mapping(tmp_path, monkeypatch):
+    db = _build(tmp_path, monkeypatch)
+    conn = sqlite3.connect(db)
+    rows = conn.execute("""
+        SELECT g.grade_id, gg.group_name
+        FROM Grades g JOIN GradeGroups gg ON g.group_id = gg.group_id
+        ORDER BY g.grade_id
+    """).fetchall()
+    assert rows == [
+        (8, "Junior"), (9, "Junior"), (10, "Junior"),
+        (11, "Senior"), (12, "Senior"),
+    ]
 
 
 def test_init_db_is_idempotent(tmp_path, monkeypatch):
