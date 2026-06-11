@@ -91,7 +91,7 @@ def test_init_db_is_idempotent(tmp_path, monkeypatch):
 
 
 def test_sunday_dorm_signins(tmp_path, monkeypatch):
-    """Sunday: an untimed morning sign-in (note, no time) + a night sign-in (jr 20:45 / sr 21:15)."""
+    """Sunday: morning (untimed) + common 19:15 + a night sign-in (jr 20:45 / sr 21:15)."""
     monkeypatch.setattr(set_up_db, "DB_PATH", str(tmp_path / "school.db"))
     monkeypatch.chdir(tmp_path)
     set_up_db.init_db()
@@ -110,10 +110,12 @@ def test_sunday_dorm_signins(tmp_path, monkeypatch):
 
     jr = signins(1)
     assert jr[0][0] is None and "morning" in jr[0][1].lower()  # untimed morning sign-in
-    assert jr[1] == ("20:45", None)
+    assert jr[1] == ("19:15", None)
+    assert jr[2] == ("20:45", None)
     sr = signins(2)
     assert sr[0][0] is None and "morning" in sr[0][1].lower()
-    assert sr[1] == ("21:15", None)
+    assert sr[1] == ("19:15", None)
+    assert sr[2] == ("21:15", None)
 
 
 def test_init_db_creates_core_tables(tmp_path, monkeypatch):

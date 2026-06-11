@@ -282,16 +282,21 @@ def init_db():
                 """, (ds_id, SIGN_IN_ID, extra))
 
             else:
-                # Sunday: an untimed morning sign-in + a night sign-in.
+                # Sunday: morning (untimed) + the common 19:15 + a night sign-in.
                 cur.execute("""
                     INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order, note)
                     VALUES (?, ?, NULL, 1, 'No set time — sign in any time in the morning')
                 """, (ds_id, SIGN_IN_ID))
 
+                cur.execute("""
+                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
+                    VALUES (?, ?, '19:15', 2)
+                """, (ds_id, SIGN_IN_ID))
+
                 night = "20:45" if g == 1 else "21:15"
                 cur.execute("""
                     INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
-                    VALUES (?, ?, ?, 2)
+                    VALUES (?, ?, ?, 3)
                 """, (ds_id, SIGN_IN_ID, night))
 
     conn.commit()

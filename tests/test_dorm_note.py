@@ -13,6 +13,6 @@ def test_fetch_dorm_signins_includes_note(tmp_path, monkeypatch):
     morning = [r for r in rows if r["start_time"] is None]
     assert morning, "expected an untimed morning sign-in row"
     assert all("morning" in r["note"].lower() for r in morning)
-    # timed rows still carry their clock time and no note
+    # timed rows still carry their clock time and no note (Sunday: 19:15 + jr/sr night)
     timed = [r for r in rows if r["start_time"] is not None]
-    assert {r["start_time"] for r in timed} == {"20:45", "21:15"}
+    assert {r["start_time"] for r in timed} == {"19:15", "20:45", "21:15"}
