@@ -241,6 +241,48 @@
   .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .app, .map-view { margin-left: var(--rail-w); }
 
+  /* ---------------- Map view ---------------- */
+  .map-view { height: 100dvh; display: flex; flex-direction: column; }
+  .map-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    background: var(--header);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
+    border-bottom: 1px solid var(--line);
+  }
+  #mapSearch {
+    flex: 0 1 360px; min-width: 0;
+    font-family: var(--font); font-size: 16px; color: var(--text);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9999px;
+    padding: 9px 18px; outline: none;
+  }
+  #mapSearch:focus { border-color: rgba(255,255,255,0.22); }
+  #mapSearch::placeholder { color: var(--text-dim); }
+  .map-status { font-size: 13px; font-weight: 500; color: var(--text-dim); white-space: nowrap; }
+  .map-status.is-error { color: var(--warn); }
+  .map-stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
+  .map-canvas { position: relative; max-width: 1200px; min-width: 720px; margin: 0 auto; }
+  .map-canvas img { display: block; width: 100%; border-radius: 14px; user-select: none; -webkit-user-select: none; }
+  .map-pin { position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
+  .map-pin__dot {
+    display: block; width: 16px; height: 16px; box-sizing: border-box;
+    background: var(--accent); border: 3px solid #fff; border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(59,130,246,0.55);
+    animation: pin-pulse 1.6s infinite;
+  }
+  @keyframes pin-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.55); }
+    70%  { box-shadow: 0 0 0 18px rgba(59,130,246,0); }
+    100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+  }
+  .map-pin__label {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+    padding: 3px 10px; border-radius: 9999px;
+    background: rgba(23,24,28,0.88); border: 1px solid var(--line);
+    color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+
   /* ---------------- Responsive ---------------- */
   @media (max-width: 640px) {
     .thread { padding: 16px 12px 22px; }
@@ -256,11 +298,13 @@
     }
     .app, .map-view { margin-left: 0; }
     .composer-dock { bottom: 64px; }
+    .map-view { height: calc(100dvh - 64px); }
   }
   @media (prefers-reduced-motion: reduce) {
     .thread-scroll { scroll-behavior: auto; }
     .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
     .send:not(:disabled):active, .copy-btn:active, .retry:active { transform: none; }
+    .map-pin__dot { animation: none; }
   }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
@@ -308,6 +352,24 @@
       </form>
     </div>
   </div>
+
+  <!-- Campus map view -->
+  <section class="map-view" id="mapView" hidden aria-label="Campus map">
+    <div class="map-head">
+      <label for="mapSearch" class="sr-only">Search a building</label>
+      <input id="mapSearch" type="search" placeholder="Search a building&hellip;" autocomplete="off" spellcheck="false" />
+      <span class="map-status" id="mapStatus" aria-live="polite"></span>
+    </div>
+    <div class="map-stage">
+      <div class="map-canvas">
+        <img src="campus-map.png" alt="Brentwood College School campus map" draggable="false" />
+        <div class="map-pin" id="mapPin" hidden>
+          <span class="map-pin__dot"></span>
+          <span class="map-pin__label" id="mapPinLabel"></span>
+        </div>
+      </div>
+    </div>
+  </section>
 
 <script>
   // ============================================================
