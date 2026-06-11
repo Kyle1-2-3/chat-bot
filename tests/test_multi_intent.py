@@ -59,7 +59,7 @@ def test_classify_query_validates_each_request(monkeypatch):
         ]
     })
     out = appmod.classify_query("hi")
-    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None}]
+    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None, "event_name": None}]
 
 
 def test_classify_query_preserves_four_intents(monkeypatch):
@@ -88,7 +88,7 @@ def test_classify_query_caps_requests_at_max(monkeypatch):
 
 def test_classify_query_empty_message():
     out = appmod.classify_query("")
-    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None}]
+    assert out == [{"intent": "UNKNOWN", "day_ref": "ANY", "meal_type": None, "grade": None, "event_name": None}]
 
 
 # ---------------------------

@@ -133,6 +133,16 @@ def fetch_timeline_by_date(sched_date: str) -> list[dict]:
         ORDER BY item_order
     """, (sched_date,))
 
+def fetch_next_event(item_type: str, from_date: str) -> list[dict]:
+    """Nearest upcoming occurrence (on/after from_date) of a named timeline event."""
+    return query("""
+        SELECT sched_date, start_time, end_time
+        FROM ScheduleTimeline
+        WHERE item_type = ? AND sched_date >= ?
+        ORDER BY sched_date, start_time
+        LIMIT 1
+    """, (item_type, from_date))
+
 def fetch_grade_group(grade: int) -> str | None:
     rows = query("""
         SELECT gg.group_name
@@ -167,10 +177,11 @@ Schema:
 {
   "requests": [
     {
-      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "UNKNOWN",
+      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
       "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
-      "grade": <integer 8-12 or null>
+      "grade": <integer 8-12 or null>,
+      "event_name": "ASSEMBLY" | "TUTORIAL" | "ADVISORY" | null
     }
   ]
 }
@@ -188,6 +199,12 @@ Rules for each request:
 - If user asks about bedtime / lights-out / what time they go to bed, classify as
   BEDTIME; put the grade in "grade" (null if not stated) and the day in day_ref
   (bedtime varies by grade and day)
+- If the user names a school event (Assembly, Tutorial, Advisory) and asks WHEN it
+  happens — "when is assembly", "what day is tutorial", "what time is advisory",
+  "조회 언제야", "튜토리얼 무슨 요일" — classify as EVENT_SEARCH and put the event in
+  "event_name" (ASSEMBLY / TUTORIAL / ADVISORY). This is a reverse lookup: the user
+  gives the event and wants its date/day/time. (A request for a whole day's schedule
+  stays SCHEDULE.)
 - If the request is unclear => UNKNOWN
 - Use meal_type only when relevant
 - Use day_ref=ANY if no day is specified
@@ -204,12 +221,15 @@ UNKNOWN_REQUEST = {
     "day_ref": "ANY",
     "meal_type": None,
     "grade": None,
+    "event_name": None,
 }
 
 VALID_INTENTS = {
     "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
-    "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "BEDTIME", "UNKNOWN"
+    "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "BEDTIME",
+    "EVENT_SEARCH", "UNKNOWN"
 }
+VALID_EVENTS = {"ASSEMBLY", "TUTORIAL", "ADVISORY"}
 VALID_DAYS = {
     "TODAY", "TOMORROW", "DAY_AFTER_TOMORROW", "MONDAY", "TUESDAY",
     "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY", "ANY"
@@ -228,18 +248,25 @@ def validate_request(obj: dict) -> dict:
     if not isinstance(grade, int) or isinstance(grade, bool):
         grade = None
 
+    event_name = obj.get("event_name")
+    if isinstance(event_name, str):
+        event_name = event_name.upper()
+
     if intent not in VALID_INTENTS:
         intent = "UNKNOWN"
     if day_ref not in VALID_DAYS:
         day_ref = "ANY"
     if meal_type is not None and meal_type not in VALID_MEALS:
         meal_type = None
+    if event_name not in VALID_EVENTS:
+        event_name = None
 
     return {
         "intent": intent,
         "day_ref": day_ref,
         "meal_type": meal_type,
         "grade": grade,
+        "event_name": event_name,
     }
 
 def classify_query(user_msg: str, memory: str = "") -> list[dict]:
@@ -357,6 +384,21 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
             "has_rule": info["has_rule"],
         }
 
+    if intent == "EVENT_SEARCH":
+        event_name = cls.get("event_name")
+        raw = fetch_next_event(event_name, today().isoformat()) if event_name else []
+        rows = [{
+            "date": r["sched_date"],
+            "day_name": calendar.day_name[date.fromisoformat(r["sched_date"]).weekday()],
+            "start_time": r["start_time"],
+            "end_time": r["end_time"],
+        } for r in raw]
+        return {
+            "type": "EVENT_SEARCH",
+            "event_name": event_name,
+            "rows": rows,
+        }
+
     if intent == "SIGNIN_SUMMARY":
         dorm_rows = fetch_dorm_signins(day_id)
         meals = fetch_day_meals(day_id)
@@ -406,6 +448,13 @@ SPECIAL RULES:
     (do not repeat the menu per group).
 - For SCHEDULE:
   - Show timeline in order.
+- For EVENT_SEARCH:
+  - This is a reverse lookup: the user named an event and wants when it next happens.
+  - "rows" holds the nearest upcoming occurrence (date, day_name, start_time, end_time).
+  - Emphasize whatever the user asked for — the day_name if they asked "what day",
+    the time if they asked "what time", or both for "when".
+  - If "rows" is empty, say you don't have an upcoming date for that event. Do NOT
+    invent a day or time.
 - For MEAL_SIGNIN:
   - Say whether sign-in is required.
   - Include time range.
