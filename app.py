@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -26,6 +28,22 @@ logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
 logger = logging.getLogger("chatbot")
 
 app = Flask(__name__, static_url_path="", static_folder="static")
+
+def client_ip() -> str:
+    """Rate-limit key. Behind nginx the socket peer is always localhost, so use
+    X-Forwarded-For — its LAST entry (nginx appends the real client IP; earlier
+    entries are client-supplied and spoofable)."""
+    fwd = request.headers.get("X-Forwarded-For")
+    if fwd:
+        return fwd.split(",")[-1].strip()
+    return get_remote_address()
+
+limiter = Limiter(client_ip, app=app, storage_uri="memory://")
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({"reply": "You're sending messages a bit fast — give it a moment and try again 🙂"}), 429
+
 client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY"),
     http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS),
@@ -537,6 +555,7 @@ def generate_answer(user_msg: str, classifications: list[dict], results: list[di
 # Routes
 # ---------------------------
 @app.route("/chat", methods=["POST"])
+@limiter.limit("10 per minute; 300 per day")  # each chat costs up to two Gemini calls
 def chat():
     req_id = str(uuid.uuid4())[:8]
     data = request.get_json(silent=True) or {}

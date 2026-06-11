@@ -1,8 +1,8 @@
 flask
-flask_sqlalchemy
+flask-limiter
 python-dotenv
 google-genai
 gunicorn
 certifi
 tzdata
-
+pytest
