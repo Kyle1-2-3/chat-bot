@@ -1,8 +1,9 @@
 name: Deploy to EC2
 
-# Push to main -> SSH into the EC2 box and roll the code forward.
-# Mirrors the manual deploy: reset to origin/main, sync deps, reseed the
-# (read-only at runtime) sqlite DB from set_up_db.py, restart gunicorn.
+# Push to main -> run the test suite, then SSH into the EC2 box and roll
+# the code forward. Mirrors the manual deploy: reset to origin/main, sync
+# deps, reseed the (read-only at runtime) sqlite DB from set_up_db.py,
+# restart gunicorn.
 on:
   push:
     branches: [main]
@@ -13,7 +14,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python set_up_db.py
+      - run: python -m pytest tests/ -q
+        env:
+          # app.py builds a genai client at import; any non-empty key works
+          # (tests never call Gemini)
+          GEMINI_API_KEY: ci-dummy-key
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Deploy over SSH
