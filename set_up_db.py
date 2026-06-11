@@ -22,7 +22,6 @@ def init_db():
 
         DROP TABLE IF EXISTS ScheduleTimeline;
         DROP TABLE IF EXISTS DayTimeline;
-        DROP TABLE IF EXISTS Blocks;
 
         DROP TABLE IF EXISTS Grades;
         DROP TABLE IF EXISTS GradeGroups;
@@ -48,11 +47,6 @@ def init_db():
         CREATE TABLE MealTypes (
             meal_type_id INTEGER PRIMARY KEY,
             type_name TEXT NOT NULL
-        );
-
-        CREATE TABLE Blocks (
-            block_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            block_code TEXT NOT NULL
         );
 
         -- ✅ 핵심: requires_signin (meal sign-in)
@@ -126,10 +120,6 @@ def init_db():
         (4, "BRUNCH"),
         (5, "AFTERNOON_SNACK"),
     ])
-
-    # Blocks (optional)
-    for b in ["A", "B", "C", "D", "E", "F"]:
-        cur.execute("INSERT INTO Blocks(block_code) VALUES (?)", (b,))
 
     # ---------------------------
     # Meal schedules

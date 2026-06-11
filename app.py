@@ -9,6 +9,7 @@ import calendar
 import json
 import logging
 import uuid
+from contextlib import closing
 
 load_dotenv()
 
@@ -37,6 +38,11 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+def query(sql: str, params: tuple = ()) -> list[dict]:
+    """Run a read query and return rows as dicts; closes the connection even on error."""
+    with closing(get_db()) as conn:
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
 
 # ---------------------------
 # Day helpers
@@ -86,44 +92,30 @@ def resolve_day_id(day_ref: str | None, user_msg: str = "") -> int:
 # ---------------------------
 # DB Fetchers
 # ---------------------------
+_MEAL_SELECT = """
+    SELECT mt.type_name, gg.group_name, ms.start_time, ms.end_time,
+           ms.requires_signin, m.menu_content
+    FROM MealSchedules ms
+    JOIN MealTypes mt ON ms.meal_type_id = mt.meal_type_id
+    JOIN GradeGroups gg ON ms.group_id = gg.group_id
+    LEFT JOIN Menus m ON m.schedule_id = ms.schedule_id
+    WHERE ms.day_id = ?
+"""
+# meal_type_id is constant when filtering to one type, so this ORDER BY also
+# yields the per-group ordering fetch_meal needs.
+_MEAL_ORDER = " ORDER BY mt.meal_type_id, gg.group_id"
+
 def fetch_meal(day_id: int, meal_type: str) -> list[dict]:
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT mt.type_name, gg.group_name, ms.start_time, ms.end_time,
-               ms.requires_signin, m.menu_content
-        FROM MealSchedules ms
-        JOIN MealTypes mt ON ms.meal_type_id = mt.meal_type_id
-        JOIN GradeGroups gg ON ms.group_id = gg.group_id
-        LEFT JOIN Menus m ON m.schedule_id = ms.schedule_id
-        WHERE ms.day_id = ? AND UPPER(mt.type_name) = ?
-        ORDER BY gg.group_id
-    """, (day_id, meal_type.upper()))
-    rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return rows
+    return query(
+        _MEAL_SELECT + " AND UPPER(mt.type_name) = ?" + _MEAL_ORDER,
+        (day_id, meal_type.upper()),
+    )
 
 def fetch_day_meals(day_id: int) -> list[dict]:
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT mt.type_name, gg.group_name, ms.start_time, ms.end_time,
-               ms.requires_signin, m.menu_content
-        FROM MealSchedules ms
-        JOIN MealTypes mt ON ms.meal_type_id = mt.meal_type_id
-        JOIN GradeGroups gg ON ms.group_id = gg.group_id
-        LEFT JOIN Menus m ON m.schedule_id = ms.schedule_id
-        WHERE ms.day_id = ?
-        ORDER BY mt.meal_type_id, gg.group_id
-    """, (day_id,))
-    rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return rows
+    return query(_MEAL_SELECT + _MEAL_ORDER, (day_id,))
 
 def fetch_dorm_signins(day_id: int) -> list[dict]:
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
+    return query("""
         SELECT gg.group_name, dsr.start_time, dsr.note, dsr.rule_order
         FROM DormScheduleRules dsr
         JOIN DormSchedules ds ON dsr.dorm_schedule_id = ds.dorm_schedule_id
@@ -132,22 +124,14 @@ def fetch_dorm_signins(day_id: int) -> list[dict]:
         WHERE ds.day_id = ? AND rt.type_name = 'SIGN_IN'
         ORDER BY gg.group_id, dsr.rule_order
     """, (day_id,))
-    rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return rows
 
 def fetch_timeline_by_date(sched_date: str) -> list[dict]:
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
+    return query("""
         SELECT item_type, block_code, start_time, end_time, item_order
         FROM ScheduleTimeline
         WHERE sched_date = ?
         ORDER BY item_order
     """, (sched_date,))
-    rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return rows
 
 # ---------------------------
 # LLM Classifier
