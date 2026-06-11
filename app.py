@@ -136,7 +136,7 @@ def fetch_timeline_by_date(sched_date: str) -> list[dict]:
 # ---------------------------
 # LLM Classifier
 # ---------------------------
-MAX_REQUESTS = 6  # most intents we answer in one compound question
+MAX_REQUESTS = 5  # most intents we answer in one compound question
 
 CLASSIFIER_SYSTEM = """
 You are an intent classifier for a school chatbot.

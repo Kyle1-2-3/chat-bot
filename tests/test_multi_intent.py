@@ -76,14 +76,14 @@ def test_classify_query_preserves_four_intents(monkeypatch):
     assert [r["intent"] for r in out] == ["MEAL", "MEAL", "SCHEDULE", "SIGNIN_SUMMARY"]
 
 
-def test_classify_query_caps_requests_at_six(monkeypatch):
+def test_classify_query_caps_requests_at_max(monkeypatch):
     patch_llm(monkeypatch, {
         "requests": [
             {"intent": "MEAL", "day_ref": "MONDAY", "meal_type": "LUNCH"}
         ] * 8
     })
     out = appmod.classify_query("lunch x8")
-    assert len(out) == 6
+    assert len(out) == appmod.MAX_REQUESTS == 5
 
 
 def test_classify_query_empty_message():
