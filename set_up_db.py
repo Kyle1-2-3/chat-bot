@@ -13,6 +13,8 @@ def init_db():
     # Reset
     # ---------------------------
     cur.executescript("""
+        DROP TABLE IF EXISTS Bedtimes;
+
         DROP TABLE IF EXISTS DormScheduleRules;
         DROP TABLE IF EXISTS DormSchedules;
         DROP TABLE IF EXISTS DormRuleTypes;
@@ -110,6 +112,16 @@ def init_db():
             FOREIGN KEY (dorm_schedule_id) REFERENCES DormSchedules(dorm_schedule_id),
             FOREIGN KEY (rule_type_id) REFERENCES DormRuleTypes(rule_type_id)
         );
+
+        -- Bedtime is per GRADE (not group), per day. bedtime NULL = no set bedtime.
+        CREATE TABLE Bedtimes (
+            grade_id INTEGER NOT NULL,
+            day_id   INTEGER NOT NULL,
+            bedtime  TEXT,
+            PRIMARY KEY (grade_id, day_id),
+            FOREIGN KEY (grade_id) REFERENCES Grades(grade_id),
+            FOREIGN KEY (day_id)   REFERENCES Days(day_id)
+        );
     """)
 
     # ---------------------------
@@ -128,6 +140,17 @@ def init_db():
     cur.executemany("INSERT INTO Grades(grade_id, group_id) VALUES (?, ?)", [
         (8, 1), (9, 1), (10, 1), (11, 2), (12, 2)
     ])
+
+    # Bedtime per grade (grade 8 doesn't board, grade 12 has none).
+    # Mon-Fri (1-5) and Sun (7) share the weekday time; Sat (6) is +1 hour.
+    weekday_bedtime = {9: "21:45", 10: "22:00", 11: "22:15", 12: None}
+    saturday_bedtime = {9: "22:45", 10: "23:00", 11: "23:15", 12: None}
+    bedtimes = []
+    for grade in (9, 10, 11, 12):
+        for day in (1, 2, 3, 4, 5, 7):
+            bedtimes.append((grade, day, weekday_bedtime[grade]))
+        bedtimes.append((grade, 6, saturday_bedtime[grade]))
+    cur.executemany("INSERT INTO Bedtimes(grade_id, day_id, bedtime) VALUES (?, ?, ?)", bedtimes)
 
     # ✅ Meal types include Sunday special
     cur.executemany("INSERT INTO MealTypes(meal_type_id, type_name) VALUES (?, ?)", [

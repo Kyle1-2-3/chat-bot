@@ -36,6 +36,25 @@ def test_foreign_key_enforced(tmp_path, monkeypatch):
                      " VALUES (1,999,1,'07:00','07:40')")  # group_id 999 doesn't exist
 
 
+def test_bedtimes(tmp_path, monkeypatch):
+    db = _build(tmp_path, monkeypatch)
+    conn = sqlite3.connect(db)
+
+    def bt(grade, day):
+        r = conn.execute(
+            "SELECT bedtime FROM Bedtimes WHERE grade_id=? AND day_id=?", (grade, day)
+        ).fetchone()
+        return r[0] if r else "NO_ROW"
+
+    # weekday (Mon=1), Saturday=6 (+1h), Sunday=7 (= weekday)
+    assert bt(9, 1) == "21:45" and bt(9, 6) == "22:45" and bt(9, 7) == "21:45"
+    assert bt(10, 1) == "22:00" and bt(10, 6) == "23:00"
+    assert bt(11, 1) == "22:15" and bt(11, 6) == "23:15" and bt(11, 7) == "22:15"
+    assert bt(12, 1) is None and bt(12, 6) is None  # grade 12: no set bedtime
+    assert bt(8, 1) == "NO_ROW"  # grade 8 not a boarder
+    assert conn.execute("SELECT count(*) FROM Bedtimes").fetchone()[0] == 28  # 4 grades x 7 days
+
+
 def test_grades_mapping(tmp_path, monkeypatch):
     db = _build(tmp_path, monkeypatch)
     conn = sqlite3.connect(db)

@@ -141,6 +141,13 @@ def fetch_grade_group(grade: int) -> str | None:
     """, (grade,))
     return rows[0]["group_name"] if rows else None
 
+def fetch_bedtime(grade: int, day_id: int) -> dict:
+    """has_rule distinguishes 'no bedtime' (row, bedtime NULL) from 'no data' (no row)."""
+    rows = query("SELECT bedtime FROM Bedtimes WHERE grade_id = ? AND day_id = ?", (grade, day_id))
+    if not rows:
+        return {"has_rule": False, "bedtime": None}
+    return {"has_rule": True, "bedtime": rows[0]["bedtime"]}
+
 # ---------------------------
 # LLM Classifier
 # ---------------------------
@@ -160,7 +167,7 @@ Schema:
 {
   "requests": [
     {
-      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "UNKNOWN",
+      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
       "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
       "grade": <integer 8-12 or null>
@@ -178,6 +185,9 @@ Rules for each request:
 - If user asks whether a grade is Junior or Senior, or which group a grade is in
   (e.g. "I'm grade 11, am I junior or senior?"), classify as GRADE_GROUP and put
   the grade number in "grade" (null if no grade is stated)
+- If user asks about bedtime / lights-out / what time they go to bed, classify as
+  BEDTIME; put the grade in "grade" (null if not stated) and the day in day_ref
+  (bedtime varies by grade and day)
 - If the request is unclear => UNKNOWN
 - Use meal_type only when relevant
 - Use day_ref=ANY if no day is specified
@@ -198,7 +208,7 @@ UNKNOWN_REQUEST = {
 
 VALID_INTENTS = {
     "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
-    "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "UNKNOWN"
+    "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "BEDTIME", "UNKNOWN"
 }
 VALID_DAYS = {
     "TODAY", "TOMORROW", "DAY_AFTER_TOMORROW", "MONDAY", "TUESDAY",
@@ -334,6 +344,19 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
             "group_name": fetch_grade_group(grade) if grade is not None else None,
         }
 
+    if intent == "BEDTIME":
+        grade = cls.get("grade")
+        sched_date = resolve_date(day_ref, user_msg)
+        info = fetch_bedtime(grade, sched_date.isoweekday()) if grade is not None \
+            else {"has_rule": False, "bedtime": None}
+        return {
+            "type": "BEDTIME",
+            "grade": grade,
+            "day_name": calendar.day_name[sched_date.weekday()],
+            "bedtime": info["bedtime"],
+            "has_rule": info["has_rule"],
+        }
+
     if intent == "SIGNIN_SUMMARY":
         dorm_rows = fetch_dorm_signins(day_id)
         meals = fetch_day_meals(day_id)
@@ -389,6 +412,11 @@ SPECIAL RULES:
 - For GRADE_GROUP:
   - State which group (Junior/Senior) the grade is in using group_name.
   - If group_name is missing/null, ask the user which grade they are in.
+- For BEDTIME:
+  - If grade is null, ask which grade they are in.
+  - If has_rule is true and bedtime is a time, give that bedtime for the day_name.
+  - If has_rule is true but bedtime is null, say that grade has no set bedtime.
+  - If has_rule is false (and grade given), say you don't have a bedtime for that grade.
 - For GREETING:
   - Greet back and briefly say what the user can ask.
 
