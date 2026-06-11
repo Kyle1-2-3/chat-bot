@@ -44,6 +44,7 @@
 
     --col: 680px;
     --dock-h: 96px;
+    --rail-w: 68px;
   }
 
   * { box-sizing: border-box; }
@@ -217,6 +218,29 @@
   .counter { font-size: 12px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .counter.is-warn { color: var(--warn); }
 
+  /* ---------------- Sidebar (view switcher) ---------------- */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 40;
+    width: var(--rail-w);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 0;
+    background: var(--header);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
+    border-right: 1px solid var(--line);
+  }
+  .nav-btn {
+    width: 52px; padding: 8px 0 6px; border: none; border-radius: 14px;
+    background: transparent; color: var(--text-muted); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-family: var(--font); font-size: 11px; font-weight: 600;
+  }
+  .nav-btn svg { width: 22px; height: 22px; }
+  .nav-btn:hover { background: var(--surface-2); color: var(--text); }
+  .nav-btn.is-active { background: var(--accent-soft); color: var(--accent); }
+  .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .app, .map-view { margin-left: var(--rail-w); }
+
   /* ---------------- Responsive ---------------- */
   @media (max-width: 640px) {
     .thread { padding: 16px 12px 22px; }
@@ -224,6 +248,14 @@
     .bubble-user { max-width: 84%; }
     .composer__hint { display: none; }
     .composer__meta { justify-content: flex-end; }
+    .sidebar {
+      top: auto; bottom: 0; left: 0; right: 0; width: auto;
+      flex-direction: row; justify-content: center; gap: 24px;
+      padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
+      border-right: none; border-top: 1px solid var(--line);
+    }
+    .app, .map-view { margin-left: 0; }
+    .composer-dock { bottom: 64px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .thread-scroll { scroll-behavior: auto; }
@@ -234,6 +266,16 @@
 </style>
 </head>
 <body>
+  <nav class="sidebar" aria-label="Views">
+    <button type="button" class="nav-btn is-active" id="navChat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Chat</span>
+    </button>
+    <button type="button" class="nav-btn" id="navMap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
+      <span>Map</span>
+    </button>
+  </nav>
   <div class="app">
     <!-- Thread -->
     <main class="thread-scroll" id="scroll">
@@ -453,6 +495,21 @@
     });
     ro.observe(dockEl);
   }
+
+  // ---------------- Sidebar view switching ----------------
+  const navChatBtn = document.getElementById("navChat");
+  const navMapBtn  = document.getElementById("navMap");
+  const mapViewEl  = document.getElementById("mapView");
+
+  function showView(view) {
+    const isMap = view === "map";
+    appEl.style.display = isMap ? "none" : "";
+    if (mapViewEl) mapViewEl.hidden = !isMap;
+    navChatBtn.classList.toggle("is-active", !isMap);
+    navMapBtn.classList.toggle("is-active", isMap);
+  }
+  navChatBtn.addEventListener("click", () => showView("chat"));
+  navMapBtn.addEventListener("click", () => showView("map"));
 
   appEl.classList.add("app--welcome");
   updateCounter(); refreshSendState(); autoGrow();
