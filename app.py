@@ -4,6 +4,8 @@ from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from google.genai import errors as genai_errors
+import httpx
 import os
 import sqlite3
 from datetime import datetime, date, timedelta
@@ -317,7 +319,11 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
         if txt.startswith("```"):
             txt = txt.strip("`").replace("json", "", 1).strip()
 
-        obj = json.loads(txt)
+        try:
+            obj = json.loads(txt)
+        except json.JSONDecodeError:
+            logger.error("classify_query: Gemini returned unparseable JSON: %.200s", txt)
+            return [dict(UNKNOWN_REQUEST)]
 
         # accept {"requests": [...]}, a bare JSON array, or a single object
         if isinstance(obj, list):
@@ -336,6 +342,12 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
         ]
         return requests_out or [dict(UNKNOWN_REQUEST)]
 
+    except httpx.TimeoutException:
+        logger.error("classify_query: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
+        return [dict(UNKNOWN_REQUEST)]
+    except genai_errors.APIError as e:
+        logger.error("classify_query: Gemini API error %s: %s", e.code, e.message)
+        return [dict(UNKNOWN_REQUEST)]
     except Exception:
         logger.exception("classify_query failed")
         return [dict(UNKNOWN_REQUEST)]
@@ -547,9 +559,13 @@ def generate_answer(user_msg: str, classifications: list[dict], results: list[di
             ),
         )
         return (r.text or "").strip()
+    except httpx.TimeoutException:
+        logger.error("generate_answer: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
+    except genai_errors.APIError as e:
+        logger.error("generate_answer: Gemini API error %s: %s", e.code, e.message)
     except Exception:
         logger.exception("generate_answer failed")
-        return "Sorry — something went wrong on my end. Please try again in a moment 🙂"
+    return "Sorry — something went wrong on my end. Please try again in a moment 🙂"
 
 # ---------------------------
 # Routes
