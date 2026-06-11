@@ -40,7 +40,7 @@
 
     --font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-    --col: 720px;
+    --col: 768px;
     --dock-h: 96px;
   }
 
@@ -99,26 +99,26 @@
   }
 
   /* ---------------- Messages (user bubble · AI plain text) ---------------- */
-  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 20px; }
+  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 24px; }
   .turn--user { justify-content: flex-end; }
-  .turn--bot  { display: block; margin-bottom: 22px; }
+  .turn--bot  { display: block; margin-bottom: 36px; }
 
   .bubble {
     max-width: 78%;
-    font-size: 16px; line-height: 1.5;
-    padding: 10px 14px; border-radius: 20px;
+    font-size: 16px; line-height: 1.6;
+    padding: 11px 18px; border-radius: 20px;
     white-space: pre-wrap; overflow-wrap: anywhere;
     box-shadow: var(--shadow-bubble);
   }
   .bubble-user {
     background: var(--surface-2); color: var(--text);
-    border-bottom-right-radius: 7px;
   }
-  /* AI response: no avatar, no bubble — text flows full width */
+  /* AI response: no avatar, no bubble — airy full-width text (Gemini-style) */
   .bubble-bot {
     max-width: 100%;
     background: none; color: var(--text);
     padding: 2px 0; border-radius: 0; box-shadow: none;
+    line-height: 1.75;
   }
   .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; gap: 4px; }
   .bot-col .bubble { max-width: 100%; }
