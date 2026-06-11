@@ -177,7 +177,7 @@ Schema:
 {
   "requests": [
     {
-      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "UNKNOWN",
+      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "LOCATION" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
       "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
       "grade": <integer 8-12 or null>,
@@ -211,6 +211,9 @@ Rules for each request:
   "event_name" (ASSEMBLY / TUTORIAL / ADVISORY). This is a reverse lookup: the user
   gives the event and wants its date/day/time. (A request for a whole day's schedule
   stays SCHEDULE.)
+- If the user asks WHERE a building or place on campus is, or how to find/get to
+  one — "where is Crooks Hall", "how do I get to the gym", "크룩스홀 어디야" —
+  classify as LOCATION. (Asking WHEN something happens is NOT LOCATION.)
 - If the request is unclear => UNKNOWN
 - Use meal_type only when relevant
 - Use day_ref=ANY if no day is specified
@@ -233,7 +236,7 @@ UNKNOWN_REQUEST = {
 VALID_INTENTS = {
     "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
     "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "BEDTIME",
-    "EVENT_SEARCH", "UNKNOWN"
+    "EVENT_SEARCH", "LOCATION", "UNKNOWN"
 }
 VALID_EVENTS = {"ASSEMBLY", "TUTORIAL", "ADVISORY"}
 VALID_DAYS = {
@@ -417,6 +420,9 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
             "meal_signins": meals_requiring
         }
 
+    if intent == "LOCATION":
+        return {"type": "LOCATION"}
+
     return {
         "type": "UNKNOWN",
         "day_id": day_id,
@@ -479,6 +485,10 @@ SPECIAL RULES:
   - If has_rule is false (and grade given), say you don't have a bedtime for that grade.
 - For GREETING:
   - Greet back and briefly say what the user can ask.
+- For LOCATION:
+  - Tell the user every building can be found on the campus map: open it with the
+    Map button in the sidebar on the left and search the building name there.
+  - Do NOT give walking directions and do NOT invent building locations.
 
 Return plain English text only.
 """
