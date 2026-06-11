@@ -587,6 +587,12 @@ def chat():
 
     logger.debug("[%s] CLASSIFICATIONS: %s", req_id, classifications)
 
+    # INFO so prod logs show the intent mix — UNKNOWN rate tells us what to add next.
+    intents = [c.get("intent", "UNKNOWN") for c in classifications]
+    logger.info("[%s] intents: %s", req_id, ",".join(intents))
+    if "UNKNOWN" in intents:
+        logger.info("[%s] UNKNOWN query: %s", req_id, user_msg)
+
     actionable = [c for c in classifications if c.get("intent") not in ("UNKNOWN", "GREETING")]
 
     if not actionable:
