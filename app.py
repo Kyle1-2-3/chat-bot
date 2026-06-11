@@ -396,9 +396,14 @@ STYLE:
 
 SPECIAL RULES:
 - For MEAL:
-  - Give meal time, group(s), and menu if available.
+  - State the menu once, then give the time(s) and which group each time applies to.
+  - If the groups (e.g. Junior/Senior) share the SAME menu, say the menu only ONCE
+    and just list each group's time — do NOT repeat the menu for each group.
+  - Only if the menus actually differ, give each group its own menu and time.
 - For MEALS_DAY:
   - Organize by meal type.
+  - Within a meal, if groups share the same menu, state it once and list the times
+    (do not repeat the menu per group).
 - For SCHEDULE:
   - Show timeline in order.
 - For MEAL_SIGNIN:
