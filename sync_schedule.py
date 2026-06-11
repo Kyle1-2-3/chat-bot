@@ -109,28 +109,33 @@ def parse_ical(text: str) -> dict[str, list[dict]]:
     return by_date
 
 
-COOKIE_BREAKS = {  # weekday (Mon=0 .. Sun=6) -> (start_time, end_time)
-    0: ("09:35", "09:55"),  # Monday
-    2: ("10:35", "10:55"),  # Wednesday
-    3: ("09:35", "09:55"),  # Thursday
+# Weekday-recurring timeline items the iCal feed omits. weekday (Mon=0 .. Sun=6)
+# -> list of (item_type, start_time, end_time). Blocks still come from the feed.
+FIXED_TIMELINE_ITEMS = {
+    0: [("COOKIE_BREAK", "09:35", "09:55")],  # Monday
+    1: [("COOKIE_BREAK", "09:35", "09:55")],  # Tuesday
+    2: [("COOKIE_BREAK", "10:35", "10:55")],  # Wednesday
+    3: [("COOKIE_BREAK", "09:35", "09:55")],  # Thursday
+    4: [("COOKIE_BREAK", "09:35", "09:55")],  # Friday (same as Tuesday)
+    5: [("INSPECTION", "09:30", "10:00")],    # Saturday
 }
 
 
-def add_cookie_breaks(by_date: dict[str, list[dict]]) -> None:
-    """Inject the weekday-recurring cookie break, which the iCal feed omits.
-    Only school days already in the feed get one; each affected day is then
-    renumbered by time so item_order stays sequential."""
+def add_fixed_timeline_items(by_date: dict[str, list[dict]]) -> None:
+    """Inject weekday-recurring items the iCal feed omits (cookie break,
+    Saturday inspection). Only school days already in the feed get them; each
+    affected day is then renumbered by time so item_order stays sequential."""
     for date_key, rows in by_date.items():
-        slot = COOKIE_BREAKS.get(date.fromisoformat(date_key).weekday())
-        if not slot:
+        items = FIXED_TIMELINE_ITEMS.get(date.fromisoformat(date_key).weekday())
+        if not items:
             continue
-        start, end = slot
-        rows.append({
-            "item_type": "COOKIE_BREAK",
-            "block_code": None,
-            "start_time": start,
-            "end_time": end,
-        })
+        for item_type, start, end in items:
+            rows.append({
+                "item_type": item_type,
+                "block_code": None,
+                "start_time": start,
+                "end_time": end,
+            })
         rows.sort(key=lambda r: r["start_time"])
         for i, r in enumerate(rows, start=1):
             r["item_order"] = i
@@ -176,7 +181,7 @@ def main():
         raise SystemExit("MSM_ICAL_URL not set in .env")
     text = fetch_ical(source)
     by_date = parse_ical(text)
-    add_cookie_breaks(by_date)
+    add_fixed_timeline_items(by_date)
     conn = sqlite3.connect(DB_PATH)
     stats = apply_schedule(conn, by_date)
     purged = purge_past(conn, today())
