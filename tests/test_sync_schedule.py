@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date
 
 import pytest
 
@@ -149,3 +150,34 @@ def test_apply_replaces_existing_date(conn):
     ss.apply_schedule(conn, ss.parse_ical(ICS_MONDAY))
     ss.apply_schedule(conn, ss.parse_ical(ICS_MONDAY))  # re-sync same day
     assert len(rows_for(conn, "2026-04-20")) == 4  # not doubled
+
+
+# ---------------------------
+# purge_past + today()
+# ---------------------------
+def insert_date(conn, d):
+    conn.execute(
+        "INSERT INTO ScheduleTimeline(sched_date,item_type,block_code,start_time,end_time,item_order)"
+        " VALUES (?,?,?,?,?,?)",
+        (d, "BLOCK", "A", "08:15", "09:35", 1),
+    )
+
+
+def test_purge_past_keeps_today_and_future(conn):
+    for d in ["2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21", "2026-04-25"]:
+        insert_date(conn, d)
+    deleted = ss.purge_past(conn, date(2026, 4, 20))
+    remaining = [r[0] for r in conn.execute(
+        "SELECT DISTINCT sched_date FROM ScheduleTimeline ORDER BY sched_date")]
+    assert remaining == ["2026-04-20", "2026-04-21", "2026-04-25"]
+    assert deleted == 2
+
+
+def test_today_uses_fake_today(monkeypatch):
+    monkeypatch.setenv("FAKE_TODAY", "2026-04-20")
+    assert ss.today() == date(2026, 4, 20)
+
+
+def test_today_ignores_blank_fake_today(monkeypatch):
+    monkeypatch.setenv("FAKE_TODAY", "")
+    assert isinstance(ss.today(), date)

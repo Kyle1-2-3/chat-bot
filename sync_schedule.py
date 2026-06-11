@@ -16,7 +16,7 @@ import re
 import ssl
 import sqlite3
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from zoneinfo import ZoneInfo
 
 import certifi
@@ -28,6 +28,15 @@ DB_PATH = os.path.join("db", "school.db")
 SCHOOL_TZ = ZoneInfo("America/Vancouver")
 
 BLOCK_SUFFIX = re.compile(r"-([A-F])$")
+
+
+def today() -> date:
+    """Current date, FAKE_TODAY-aware — must match app.today() so the off-term
+    demo's fixture dates aren't treated as past and purged."""
+    override = (os.getenv("FAKE_TODAY") or "").strip()
+    if override:
+        return datetime.strptime(override, "%Y-%m-%d").date()
+    return datetime.now().date()
 
 
 def _named_item(summary: str) -> str | None:
@@ -117,6 +126,14 @@ def apply_schedule(conn: sqlite3.Connection, by_date: dict[str, list[dict]]) -> 
     return stats
 
 
+def purge_past(conn: sqlite3.Connection, today_date: date) -> int:
+    """Delete schedule rows before today — the bot only needs the upcoming week."""
+    cur = conn.cursor()
+    cur.execute("DELETE FROM ScheduleTimeline WHERE sched_date < ?", (today_date.isoformat(),))
+    conn.commit()
+    return cur.rowcount
+
+
 def fetch_ical(source: str) -> str:
     if source.startswith("http"):
         ctx = ssl.create_default_context(cafile=certifi.where())
@@ -134,8 +151,9 @@ def main():
     by_date = parse_ical(text)
     conn = sqlite3.connect(DB_PATH)
     stats = apply_schedule(conn, by_date)
+    purged = purge_past(conn, today())
     conn.close()
-    print(f"Schedule sync done: {stats['rows']} rows across {stats['dates']} dates")
+    print(f"Schedule sync done: {stats['rows']} rows across {stats['dates']} dates, {purged} past rows purged")
 
 
 if __name__ == "__main__":
