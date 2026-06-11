@@ -401,7 +401,7 @@ Report results to the user, including any coordinate corrections made in Task 4 
 - Create: `tests/test_location.py`
 - Modify: `app.py` (4 small edits: classifier enum line ~180, classifier rules ~line 214, `VALID_INTENTS` ~line 233, `build_result_from_classification` ~line 420, `ANSWER_SYSTEM` ~line 480)
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `tests/test_location.py`:
 
@@ -438,12 +438,12 @@ def test_chat_location_path(monkeypatch):
     assert captured["results"][0]["type"] == "LOCATION"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python3 -m pytest tests/test_location.py -v`
 Expected: `test_validate_keeps_location_intent` FAILS (intent coerced to `UNKNOWN`); `test_build_result_location` FAILS (`type` is `UNKNOWN`); `test_chat_location_path` may pass or fail depending on UNKNOWN filtering — that's fine, at least the first two must FAIL.
 
-- [ ] **Step 3: Add `LOCATION` to the classifier prompt**
+- [x] **Step 3: Add `LOCATION` to the classifier prompt**
 
 In `CLASSIFIER_SYSTEM` (app.py line ~180), change the intent enum line to include LOCATION before UNKNOWN:
 
@@ -459,7 +459,7 @@ And in the rules list, after the EVENT_SEARCH rule (line ~213), add:
   classify as LOCATION. (Asking WHEN something happens is NOT LOCATION.)
 ```
 
-- [ ] **Step 4: Add to VALID_INTENTS**
+- [x] **Step 4: Add to VALID_INTENTS**
 
 In `app.py` (~line 233):
 
@@ -471,7 +471,7 @@ VALID_INTENTS = {
 }
 ```
 
-- [ ] **Step 5: Add the build_result branch**
+- [x] **Step 5: Add the build_result branch**
 
 In `build_result_from_classification` (app.py, after the `SIGNIN_SUMMARY` branch ~line 418, before the final `return`):
 
@@ -480,7 +480,7 @@ In `build_result_from_classification` (app.py, after the `SIGNIN_SUMMARY` branch
         return {"type": "LOCATION"}
 ```
 
-- [ ] **Step 6: Add the answer rule**
+- [x] **Step 6: Add the answer rule**
 
 In `ANSWER_SYSTEM` SPECIAL RULES (app.py, after the GREETING rule ~line 481), add:
 
@@ -491,17 +491,17 @@ In `ANSWER_SYSTEM` SPECIAL RULES (app.py, after the GREETING rule ~line 481), ad
   - Do NOT give walking directions and do NOT invent building locations.
 ```
 
-- [ ] **Step 7: Run the new tests**
+- [x] **Step 7: Run the new tests**
 
 Run: `python3 -m pytest tests/test_location.py -v`
 Expected: 3 passed
 
-- [ ] **Step 8: Run the full suite**
+- [x] **Step 8: Run the full suite**
 
 Run: `python3 -m pytest tests/ -v`
 Expected: all pass (pre-existing failures in the other agent's `test_sync_schedule.py`, if any, are not yours — report but don't fix)
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add app.py tests/test_location.py
