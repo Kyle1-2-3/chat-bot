@@ -36,6 +36,19 @@ def test_foreign_key_enforced(tmp_path, monkeypatch):
                      " VALUES (1,999,1,'07:00','07:40')")  # group_id 999 doesn't exist
 
 
+def test_dorm_rules_are_signin_only(tmp_path, monkeypatch):
+    """Only SIGN_IN is surfaced; the old made-up PREP/BEDTIME/IN_DORM rows are gone."""
+    db = _build(tmp_path, monkeypatch)
+    conn = sqlite3.connect(db)
+    types_with_rows = {r[0] for r in conn.execute("""
+        SELECT DISTINCT rt.type_name
+        FROM DormScheduleRules dsr JOIN DormRuleTypes rt ON dsr.rule_type_id = rt.rule_type_id
+    """)}
+    assert types_with_rows == {"SIGN_IN"}
+    all_types = {r[0] for r in conn.execute("SELECT type_name FROM DormRuleTypes")}
+    assert all_types == {"SIGN_IN"}
+
+
 def test_bedtimes(tmp_path, monkeypatch):
     db = _build(tmp_path, monkeypatch)
     conn = sqlite3.connect(db)

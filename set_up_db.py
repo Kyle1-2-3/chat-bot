@@ -247,18 +247,14 @@ def init_db():
     # - Sunday: morning dorm sign-in + 19:15 evening sign-in (and no meal sign-in questions here)
     #   You can adjust morning time to your real data.
     # ---------------------------
-    dorm_rule_types = ["SIGN_IN", "PREP", "BEDTIME", "IN_DORM"]
-    for rt in dorm_rule_types:
-        cur.execute("INSERT INTO DormRuleTypes(type_name) VALUES (?)", (rt,))
+    # Only SIGN_IN is surfaced by the bot; bedtime now lives in the Bedtimes table.
+    cur.execute("INSERT INTO DormRuleTypes(type_name) VALUES ('SIGN_IN')")
 
     def dorm_rule_type_id(name: str) -> int:
         row = cur.execute("SELECT rule_type_id FROM DormRuleTypes WHERE type_name=?", (name,)).fetchone()
         return row[0]
 
     SIGN_IN_ID = dorm_rule_type_id("SIGN_IN")
-    PREP_ID = dorm_rule_type_id("PREP")
-    BEDTIME_ID = dorm_rule_type_id("BEDTIME")
-    IN_DORM_ID = dorm_rule_type_id("IN_DORM")  # kept, but not used for sign-in now
 
     for d in range(1, 8):
         for g in (1, 2):  # 1 junior, 2 senior
@@ -271,18 +267,6 @@ def init_db():
                     INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
                     VALUES (?, ?, '19:15', 1)
                 """, (ds_id, SIGN_IN_ID))
-
-                # Prep + bedtime
-                cur.execute("""
-                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, end_time, rule_order)
-                    VALUES (?, ?, '19:30', '21:00', 2)
-                """, (ds_id, PREP_ID))
-
-                bt = "22:00" if g == 1 else "22:15"
-                cur.execute("""
-                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
-                    VALUES (?, ?, ?, 3)
-                """, (ds_id, BEDTIME_ID, bt))
 
             elif d == 6:
                 # Saturday: two dorm sign-ins
@@ -297,12 +281,6 @@ def init_db():
                     VALUES (?, ?, ?, 2)
                 """, (ds_id, SIGN_IN_ID, extra))
 
-                bt = "23:00" if g == 1 else "23:15"
-                cur.execute("""
-                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
-                    VALUES (?, ?, ?, 3)
-                """, (ds_id, BEDTIME_ID, bt))
-
             else:
                 # Sunday: an untimed morning sign-in + a night sign-in.
                 cur.execute("""
@@ -315,12 +293,6 @@ def init_db():
                     INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
                     VALUES (?, ?, ?, 2)
                 """, (ds_id, SIGN_IN_ID, night))
-
-                bt = "22:00" if g == 1 else "22:15"
-                cur.execute("""
-                    INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
-                    VALUES (?, ?, ?, 3)
-                """, (ds_id, BEDTIME_ID, bt))
 
     conn.commit()
     conn.close()
