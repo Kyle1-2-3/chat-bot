@@ -22,6 +22,8 @@ from zoneinfo import ZoneInfo
 import certifi
 from dotenv import load_dotenv
 
+from net_retry import with_retry
+
 load_dotenv()
 
 DB_PATH = os.path.join("db", "school.db")
@@ -179,7 +181,7 @@ def main():
     source = os.getenv("MSM_ICAL_URL")
     if not source:
         raise SystemExit("MSM_ICAL_URL not set in .env")
-    text = fetch_ical(source)
+    text = with_retry(lambda: fetch_ical(source))
     by_date = parse_ical(text)
     add_fixed_timeline_items(by_date)
     conn = sqlite3.connect(DB_PATH)

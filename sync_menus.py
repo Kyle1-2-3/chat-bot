@@ -13,6 +13,8 @@ import urllib.request
 
 import certifi
 
+from net_retry import with_retry
+
 DB_PATH = "db/school.db"
 
 FIRESTORE_URL = (
@@ -100,7 +102,7 @@ def fetch_menu_doc() -> dict:
 
 
 def main():
-    doc = fetch_menu_doc()
+    doc = with_retry(lambda: fetch_menu_doc())
     menus = parse_menu_doc(doc)
     conn = sqlite3.connect(DB_PATH)
     stats = apply_menus(conn, menus)
