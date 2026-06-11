@@ -330,6 +330,9 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
     day_ref = cls.get("day_ref", "ANY")
     meal_type = cls.get("meal_type")
 
+    if intent == "LOCATION":
+        return {"type": "LOCATION"}
+
     day_id = resolve_day_id(day_ref, user_msg)
     day_name = calendar.day_name[day_id - 1]
 
@@ -420,9 +423,6 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
             "meal_signins": meals_requiring
         }
 
-    if intent == "LOCATION":
-        return {"type": "LOCATION"}
-
     return {
         "type": "UNKNOWN",
         "day_id": day_id,
@@ -440,13 +440,15 @@ IMPORTANT RULES:
 - Do not invent schedules, meals, sign-in rules, block names, or times.
 - If the data is missing, clearly say you do not have that information.
 - "results" is a list: the user may have asked several things at once.
-  Answer EVERY result, in order, in one reply. Each result has its own day_name.
+  Answer EVERY result, in order, in one reply. Day-based results carry their
+  own day_name; some results (e.g. LOCATION) have no day at all.
 
 STYLE:
 - Friendly, natural, concise.
 - Short paragraphs are okay.
 - Bullet points are okay.
-- Always mention the actual day_name when answering.
+- Always mention the actual day_name when the result has one; if a result has
+  no day_name, do NOT invent or mention a day for it.
 - Write clock times in 12-hour format with AM/PM (data times are 24-hour:
   "13:00" => "1:00 PM").
 
@@ -489,7 +491,8 @@ SPECIAL RULES:
   - Greet back and briefly say what the user can ask.
 - For LOCATION:
   - Tell the user every building can be found on the campus map: open it with the
-    Map button in the sidebar on the left and search the building name there.
+    Map button (left sidebar on desktop, bottom bar on mobile) and search the
+    building name there.
   - Do NOT give walking directions and do NOT invent building locations.
 
 Return plain English text only.
