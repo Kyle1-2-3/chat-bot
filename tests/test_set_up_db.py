@@ -118,6 +118,33 @@ def test_sunday_dorm_signins(tmp_path, monkeypatch):
     assert sr[2] == ("21:15", None)
 
 
+def test_saturday_lunch_both_groups_at_1250(tmp_path, monkeypatch):
+    """Saturday lunch is 12:50-14:00 for both groups; weekdays stay staggered."""
+    db = _build(tmp_path, monkeypatch)
+    conn = _conn(db)
+
+    def lunch(day_id, group_id):
+        return conn.execute("""
+            SELECT ms.start_time, ms.end_time FROM MealSchedules ms
+            JOIN MealTypes mt ON ms.meal_type_id = mt.meal_type_id
+            WHERE ms.day_id=? AND ms.group_id=? AND mt.type_name='LUNCH'
+        """, (day_id, group_id)).fetchone()
+
+    assert lunch(6, 1) == ("12:50", "14:00")  # Saturday Junior
+    assert lunch(6, 2) == ("12:50", "14:00")  # Saturday Senior
+    assert lunch(1, 1) == ("13:00", "14:00")  # weekday Junior unchanged
+    assert lunch(1, 2) == ("13:15", "14:00")  # weekday Senior unchanged
+
+    def dinner(group_id):
+        return conn.execute("""
+            SELECT ms.start_time, ms.end_time FROM MealSchedules ms
+            JOIN MealTypes mt ON ms.meal_type_id = mt.meal_type_id
+            WHERE ms.day_id=6 AND ms.group_id=? AND mt.type_name='DINNER'
+        """, (group_id,)).fetchone()
+
+    assert dinner(1) == ("17:15", "18:30") and dinner(2) == ("17:15", "18:30")  # unchanged
+
+
 def test_init_db_creates_core_tables(tmp_path, monkeypatch):
     monkeypatch.setattr(set_up_db, "DB_PATH", str(tmp_path / "school.db"))
     monkeypatch.chdir(tmp_path)
