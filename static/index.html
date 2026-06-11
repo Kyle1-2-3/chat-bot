@@ -65,38 +65,6 @@
     min-height: 100dvh;
   }
 
-  /* ---------------- Header (messenger style) ---------------- */
-  .topbar {
-    position: sticky; top: 0; z-index: 30;
-    flex: 0 0 auto;
-    display: flex; align-items: center; gap: 12px;
-    padding: 10px 16px;
-    background: var(--header);
-    -webkit-backdrop-filter: saturate(160%) blur(18px);
-    backdrop-filter: saturate(160%) blur(18px);
-    border-bottom: 1px solid var(--line);
-  }
-  .avatar {
-    flex: 0 0 auto;
-    border-radius: 50%;
-    background: linear-gradient(140deg, #ff6a5e 0%, #e02d3c 100%);
-    display: flex; align-items: center; justify-content: center;
-    color: #fff;
-    box-shadow: var(--shadow-bubble);
-  }
-  .avatar svg { width: 56%; height: 56%; }
-  .topbar .avatar { width: 38px; height: 38px; }
-  .topbar__meta { display: flex; flex-direction: column; line-height: 1.2; }
-  .topbar__name { font-size: 15px; font-weight: 700; color: var(--text); }
-  .topbar__status {
-    font-size: 12px; font-weight: 500; color: var(--text-muted);
-    display: inline-flex; align-items: center; gap: 5px;
-  }
-  .status-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,0.25);
-  }
-
   /* ---------------- Scrolling thread ---------------- */
   .thread-scroll {
     flex: 1 1 auto; overflow-y: auto;
@@ -111,28 +79,29 @@
     text-align: center; gap: 10px; padding: 24px 0;
   }
   .hero.is-hidden { display: none; }
-  .hero .avatar { width: 72px; height: 72px; margin-bottom: 6px; }
-  .hero__title { font-size: 30px; font-weight: 700; letter-spacing: -0.3px; margin: 0; color: var(--text); }
-  .hero__scope { font-size: 16px; font-weight: 500; color: var(--text-muted); max-width: 34ch; margin: 2px 0 0; }
-
-  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 18px; max-width: 560px; }
-  .chip {
-    font-family: var(--font); font-size: 14px; font-weight: 600;
-    color: var(--text); background: var(--surface);
-    border: 1px solid var(--line); border-radius: 9999px;
-    padding: 10px 16px; cursor: pointer; min-height: 42px;
-    box-shadow: var(--shadow-bubble);
-    transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease;
+  .hero__title {
+    font-size: 42px; font-weight: 500; letter-spacing: -0.6px; margin: 0; color: var(--text);
   }
-  .chip:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.16); }
-  .chip:active { transform: scale(0.96); }
-  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* ---------------- Messages (bubbles both sides) ---------------- */
-  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 14px; }
+  /* Welcome layout: title + composer centered as one unit, soft glow behind */
+  .app--welcome { justify-content: center; }
+  .app--welcome::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(115% 75% at 50% 44%,
+      rgba(59,130,246,0.20) 0%, rgba(59,130,246,0.07) 34%, rgba(23,24,28,0) 64%);
+  }
+  .app--welcome .thread-scroll { flex: 0 0 auto; overflow: visible; }
+  .app--welcome .thread { padding: 0 16px; }
+  .app--welcome .hero { min-height: 0; padding: 8px 0 26px; }
+  .app--welcome .composer-dock {
+    position: static; background: transparent; border-top: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+
+  /* ---------------- Messages (user bubble · AI plain text) ---------------- */
+  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 20px; }
   .turn--user { justify-content: flex-end; }
-  .turn--bot  { justify-content: flex-start; }
-  .turn .avatar { width: 30px; height: 30px; margin-bottom: 2px; }
+  .turn--bot  { display: block; margin-bottom: 22px; }
 
   .bubble {
     max-width: 78%;
@@ -145,14 +114,16 @@
     background: var(--surface-2); color: var(--text);
     border-bottom-right-radius: 7px;
   }
+  /* AI response: no avatar, no bubble — text flows full width */
   .bubble-bot {
-    background: var(--surface); color: var(--text);
-    border-bottom-left-radius: 7px;
+    max-width: 100%;
+    background: none; color: var(--text);
+    padding: 2px 0; border-radius: 0; box-shadow: none;
   }
-  .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 78%; gap: 4px; }
+  .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; gap: 4px; }
   .bot-col .bubble { max-width: 100%; }
 
-  .bot-actions { padding-left: 6px; height: 0; overflow: hidden; opacity: 0; transition: opacity 0.18s ease; }
+  .bot-actions { padding-left: 0; height: 0; overflow: hidden; opacity: 0; transition: opacity 0.18s ease; }
   .turn--bot:hover .bot-actions, .turn--bot:focus-within .bot-actions { height: auto; opacity: 1; }
   .copy-btn {
     font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text-muted);
@@ -230,54 +201,27 @@
   /* ---------------- Responsive ---------------- */
   @media (max-width: 640px) {
     .thread { padding: 16px 12px 22px; }
-    .hero__title { font-size: 26px; }
-    .hero__scope { font-size: 15px; }
-    .bubble { max-width: 84%; }
-    .bot-col { max-width: 84%; }
+    .hero__title { font-size: 34px; }
+    .bubble-user { max-width: 84%; }
     .composer__hint { display: none; }
     .composer__meta { justify-content: flex-end; }
   }
   @media (prefers-reduced-motion: reduce) {
     .thread-scroll { scroll-behavior: auto; }
     .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
-    .chip:active, .send:not(:disabled):active, .copy-btn:active, .retry:active { transform: none; }
+    .send:not(:disabled):active, .copy-btn:active, .retry:active { transform: none; }
   }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
   <div class="app">
-    <!-- Header -->
-    <header class="topbar">
-      <div class="avatar" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/>
-        </svg>
-      </div>
-      <div class="topbar__meta">
-        <span class="topbar__name">Brentwood Assistant</span>
-        <span class="topbar__status"><span class="status-dot" aria-hidden="true"></span>Online &middot; Meals, schedule &amp; dorm</span>
-      </div>
-    </header>
-
     <!-- Thread -->
     <main class="thread-scroll" id="scroll">
       <div class="thread">
         <!-- Welcome -->
         <section class="hero" id="hero">
-          <div class="avatar" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/>
-            </svg>
-          </div>
-          <p class="hero__scope">I&rsquo;m your Brentwood Assistant. Ask me about meals, your class schedule, or dorm sign-in &amp; curfew times.</p>
-          <div class="chips" id="chips" role="group" aria-label="Suggested questions">
-            <button class="chip" type="button">What&rsquo;s for lunch today?</button>
-            <button class="chip" type="button">When does study hall start tonight?</button>
-            <button class="chip" type="button">What time is dorm sign-in on a weeknight?</button>
-            <button class="chip" type="button">What&rsquo;s my next class?</button>
-            <button class="chip" type="button">What time is weekend curfew?</button>
-          </div>
+          <h1 class="hero__title">Brentwood Assistant</h1>
         </section>
 
         <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
@@ -316,9 +260,9 @@
 
   const conversation = []; // { role:"user"|"bot", text } — memory only, no localStorage
 
+  const appEl     = document.querySelector(".app");
   const scrollEl  = document.getElementById("scroll");
   const heroEl    = document.getElementById("hero");
-  const chipsEl   = document.getElementById("chips");
   const logEl     = document.getElementById("log");
   const formEl    = document.getElementById("form");
   const inputEl   = document.getElementById("input");
@@ -328,8 +272,7 @@
 
   let inFlight = false;
 
-  const ICON_AVATAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/></svg>';
-  const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  const ICON_COPY ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
   const ICON_RETRY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
   // ---------------- Composer behavior ----------------
@@ -354,22 +297,9 @@
     if (!text || inFlight) return;
     sendMessage(text);
   });
-  chipsEl.addEventListener("click", (e) => {
-    const btn = e.target.closest(".chip");
-    if (!btn || inFlight) return;
-    sendMessage(btn.textContent.trim());
-  });
-
   // ---------------- Rendering (textContent only for model output) ----------------
-  function hideHero() { heroEl.classList.add("is-hidden"); }
+  function hideHero() { heroEl.classList.add("is-hidden"); appEl.classList.remove("app--welcome"); }
   function scrollToBottom() { requestAnimationFrame(() => { scrollEl.scrollTop = scrollEl.scrollHeight; }); }
-
-  function makeAvatar() {
-    const a = document.createElement("div");
-    a.className = "avatar"; a.setAttribute("aria-hidden", "true");
-    a.innerHTML = ICON_AVATAR; // static trusted markup
-    return a;
-  }
 
   function appendUser(text) {
     const turn = document.createElement("div");
@@ -390,7 +320,6 @@
     const bubble = document.createElement("div");
     bubble.className = "bubble bubble-bot";
     col.appendChild(bubble);
-    turn.appendChild(makeAvatar());
     turn.appendChild(col);
     logEl.appendChild(turn);
     return { turn, bubble, col };
@@ -494,6 +423,7 @@
     ro.observe(dockEl);
   }
 
+  appEl.classList.add("app--welcome");
   updateCounter(); refreshSendState(); autoGrow();
 </script>
 </body>
