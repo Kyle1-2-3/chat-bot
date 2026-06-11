@@ -44,6 +44,7 @@
 
     --col: 680px;
     --dock-h: 96px;
+    --rail-w: 68px;
   }
 
   * { box-sizing: border-box; }
@@ -217,6 +218,71 @@
   .counter { font-size: 12px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .counter.is-warn { color: var(--warn); }
 
+  /* ---------------- Sidebar (view switcher) ---------------- */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 40;
+    width: var(--rail-w);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 0;
+    background: var(--header);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
+    border-right: 1px solid var(--line);
+  }
+  .nav-btn {
+    width: 52px; padding: 8px 0 6px; border: none; border-radius: 14px;
+    background: transparent; color: var(--text-muted); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-family: var(--font); font-size: 11px; font-weight: 600;
+  }
+  .nav-btn svg { width: 22px; height: 22px; }
+  .nav-btn:hover { background: var(--surface-2); color: var(--text); }
+  .nav-btn.is-active { background: var(--accent-soft); color: var(--accent); }
+  .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .app, .map-view { margin-left: var(--rail-w); }
+
+  /* ---------------- Map view ---------------- */
+  .map-view { height: 100dvh; display: flex; flex-direction: column; }
+  .map-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    background: var(--header);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
+    border-bottom: 1px solid var(--line);
+  }
+  #mapSearch {
+    flex: 0 1 360px; min-width: 0;
+    font-family: var(--font); font-size: 16px; color: var(--text);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9999px;
+    padding: 9px 18px; outline: none;
+  }
+  #mapSearch:focus { border-color: rgba(255,255,255,0.22); }
+  #mapSearch::placeholder { color: var(--text-dim); }
+  .map-status { font-size: 13px; font-weight: 500; color: var(--text-dim); white-space: nowrap; }
+  .map-status.is-error { color: var(--warn); }
+  .map-stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
+  .map-canvas { position: relative; max-width: 1200px; min-width: 720px; margin: 0 auto; }
+  .map-canvas img { display: block; width: 100%; border-radius: 14px; user-select: none; -webkit-user-select: none; }
+  .map-pin { position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
+  .map-pin__dot {
+    display: block; width: 16px; height: 16px; box-sizing: border-box;
+    background: var(--accent); border: 3px solid #fff; border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(59,130,246,0.55);
+    animation: pin-pulse 1.6s infinite;
+  }
+  @keyframes pin-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.55); }
+    70%  { box-shadow: 0 0 0 18px rgba(59,130,246,0); }
+    100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+  }
+  .map-pin__label {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+    padding: 3px 10px; border-radius: 9999px;
+    background: rgba(23,24,28,0.88); border: 1px solid var(--line);
+    color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+
   /* ---------------- Responsive ---------------- */
   @media (max-width: 640px) {
     .thread { padding: 16px 12px 22px; }
@@ -224,16 +290,36 @@
     .bubble-user { max-width: 84%; }
     .composer__hint { display: none; }
     .composer__meta { justify-content: flex-end; }
+    .sidebar {
+      top: auto; bottom: 0; left: 0; right: 0; width: auto;
+      flex-direction: row; justify-content: center; gap: 24px;
+      padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
+      border-right: none; border-top: 1px solid var(--line);
+    }
+    .app, .map-view { margin-left: 0; }
+    .composer-dock { bottom: 64px; }
+    .map-view { height: calc(100dvh - 64px); }
   }
   @media (prefers-reduced-motion: reduce) {
     .thread-scroll { scroll-behavior: auto; }
     .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
     .send:not(:disabled):active, .copy-btn:active, .retry:active { transform: none; }
+    .map-pin__dot { animation: none; }
   }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
+  <nav class="sidebar" aria-label="Views">
+    <button type="button" class="nav-btn is-active" id="navChat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Chat</span>
+    </button>
+    <button type="button" class="nav-btn" id="navMap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
+      <span>Map</span>
+    </button>
+  </nav>
   <div class="app">
     <!-- Thread -->
     <main class="thread-scroll" id="scroll">
@@ -266,6 +352,24 @@
       </form>
     </div>
   </div>
+
+  <!-- Campus map view -->
+  <section class="map-view" id="mapView" hidden aria-label="Campus map">
+    <div class="map-head">
+      <label for="mapSearch" class="sr-only">Search a building</label>
+      <input id="mapSearch" type="search" placeholder="Search a building&hellip;" autocomplete="off" spellcheck="false" />
+      <span class="map-status" id="mapStatus" aria-live="polite"></span>
+    </div>
+    <div class="map-stage">
+      <div class="map-canvas">
+        <img src="campus-map.png" alt="Brentwood College School campus map" draggable="false" />
+        <div class="map-pin" id="mapPin" hidden>
+          <span class="map-pin__dot"></span>
+          <span class="map-pin__label" id="mapPinLabel"></span>
+        </div>
+      </div>
+    </div>
+  </section>
 
 <script>
   // ============================================================
@@ -453,6 +557,89 @@
     });
     ro.observe(dockEl);
   }
+
+  // ---------------- Sidebar view switching ----------------
+  const navChatBtn = document.getElementById("navChat");
+  const navMapBtn  = document.getElementById("navMap");
+  const mapViewEl  = document.getElementById("mapView");
+
+  function showView(view) {
+    const isMap = view === "map";
+    appEl.style.display = isMap ? "none" : "";
+    if (mapViewEl) mapViewEl.hidden = !isMap;
+    navChatBtn.classList.toggle("is-active", !isMap);
+    navMapBtn.classList.toggle("is-active", isMap);
+  }
+  navChatBtn.addEventListener("click", () => showView("chat"));
+  navMapBtn.addEventListener("click", () => showView("map"));
+
+  // ---------------- Campus map search ----------------
+  // x/y are percentages of the map image (1536x1024).
+  const BUILDINGS = [
+    { name: "Crooks Hall", aliases: ["dining hall", "cafeteria", "student centre", "student center", "fitness centre", "fitness center", "tuck shop", "laundry"], x: 25.6, y: 77.0 },
+    { name: "Campbell Common", aliases: ["common"], x: 32.7, y: 78.0 },
+    { name: "Centre for Arts & Humanities", aliases: ["humanities", "arts and humanities"], x: 39.5, y: 78.5 },
+    { name: "Centre for Innovation and Learning", aliases: ["innovation", "cfil"], x: 55.0, y: 77.5 },
+    { name: "TGB Centre for Performing Arts", aliases: ["performing arts", "theatre", "theater", "tgb"], x: 29.3, y: 64.0 },
+    { name: "Hope House", aliases: [], x: 28.6, y: 45.5 },
+    { name: "Allard House", aliases: [], x: 35.2, y: 52.5 },
+    { name: "Mackenzie House", aliases: [], x: 42.6, y: 55.5 },
+    { name: "Alex House", aliases: [], x: 51.4, y: 62.8 },
+    { name: "Rogers House", aliases: [], x: 55.5, y: 45.8 },
+    { name: "Whittall House", aliases: [], x: 63.5, y: 53.0 },
+    { name: "Ellis House", aliases: [], x: 72.4, y: 46.8 },
+    { name: "Privett House", aliases: [], x: 70.0, y: 56.7 },
+    { name: "Woodward", aliases: ["admin", "administration", "admissions"], x: 83.8, y: 45.3 },
+    { name: "Maeda Health Centre", aliases: ["health", "nurse", "clinic", "maeda"], x: 79.0, y: 51.5 },
+    { name: "Foote Athletic Centre", aliases: ["gym", "athletics", "foote"], x: 84.0, y: 16.5 },
+    { name: "Artificial Turf", aliases: ["turf"], x: 85.3, y: 33.5 },
+    { name: "Field 1", aliases: [], x: 23.4, y: 23.0 },
+    { name: "Field 2", aliases: [], x: 37.8, y: 13.5 },
+    { name: "Field 3 (Gillespie Field)", aliases: ["gillespie"], x: 56.6, y: 29.5 },
+    { name: "Field 4", aliases: [], x: 69.5, y: 29.0 },
+    { name: "Tennis Courts", aliases: ["tennis"], x: 38.3, y: 29.0 },
+    { name: "Main Gate", aliases: ["gate", "entrance"], x: 48.0, y: 8.5 },
+    { name: "Grounds", aliases: [], x: 62.3, y: 8.8 },
+    { name: "Dock Area", aliases: ["dock", "waterfront", "pier"], x: 54.5, y: 93.5 },
+    { name: "Visitor Parking", aliases: ["parking"], x: 21.0, y: 51.0 },
+  ];
+
+  const mapSearchEl = document.getElementById("mapSearch");
+  const mapStatusEl = document.getElementById("mapStatus");
+  const mapPinEl    = document.getElementById("mapPin");
+  const mapPinLabel = document.getElementById("mapPinLabel");
+
+  function findBuilding(query) {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return null;
+    return BUILDINGS.find(b =>
+      b.name.toLowerCase().includes(q) ||
+      b.aliases.some(a => a.includes(q) || q.includes(a))
+    ) || null;
+  }
+
+  mapSearchEl.addEventListener("input", () => {
+    const raw = mapSearchEl.value;
+    if (!raw.trim()) {
+      mapPinEl.hidden = true;
+      mapStatusEl.textContent = "";
+      mapStatusEl.classList.remove("is-error");
+      return;
+    }
+    const hit = findBuilding(raw);
+    if (hit) {
+      mapPinEl.style.left = hit.x + "%";
+      mapPinEl.style.top  = hit.y + "%";
+      mapPinLabel.textContent = hit.name;
+      mapPinEl.hidden = false;
+      mapStatusEl.textContent = hit.name;
+      mapStatusEl.classList.remove("is-error");
+    } else {
+      mapPinEl.hidden = true;
+      mapStatusEl.textContent = "No matching building";
+      mapStatusEl.classList.add("is-error");
+    }
+  });
 
   appEl.classList.add("app--welcome");
   updateCounter(); refreshSendState(); autoGrow();
