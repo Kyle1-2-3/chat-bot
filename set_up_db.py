@@ -191,11 +191,11 @@ def init_db():
                 if d in (3, 6):  # Wed + Sat
                     bst, bet = ("08:00", "08:40")
 
-                # Lunch times (no meal sign-in)
+                # Lunch (no meal sign-in): staggered start, both end at 14:00
                 if group_id == 1:
-                    lst, let = ("13:00", "13:40")
+                    lst, let = ("13:00", "14:00")
                 else:
-                    lst, let = ("13:15", "13:55")
+                    lst, let = ("13:15", "14:00")
 
                 # Dinner times (sign-in required)
                 dst, det = ("17:15", "18:30")

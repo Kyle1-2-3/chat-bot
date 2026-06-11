@@ -19,6 +19,14 @@ def test_fetch_meal_single_type_both_groups(tmp_path, monkeypatch):
     assert all(r["type_name"] == "LUNCH" for r in rows)
 
 
+def test_lunch_ends_at_14_00_both_groups(tmp_path, monkeypatch):
+    seed(tmp_path, monkeypatch)
+    rows = appmod.fetch_meal(1, "LUNCH")  # Monday lunch
+    by_group = {r["group_name"]: (r["start_time"], r["end_time"]) for r in rows}
+    assert by_group["Junior"] == ("13:00", "14:00")
+    assert by_group["Senior"] == ("13:15", "14:00")
+
+
 def test_fetch_day_meals_ordered_by_type_then_group(tmp_path, monkeypatch):
     seed(tmp_path, monkeypatch)
     rows = appmod.fetch_day_meals(1)  # Monday: BREAKFAST, LUNCH, DINNER x2 groups
