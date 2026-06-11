@@ -498,6 +498,15 @@ SPECIAL RULES:
 Return plain English text only.
 """
 
+# Pure where-is questions need no data and no LLM phrasing — answer statically
+# and skip the second Gemini call. Mixed messages still go through the LLM
+# (the "For LOCATION" rule above covers them).
+LOCATION_REPLY = (
+    "Every building is on the campus map 🙂 Open it with the Map button "
+    "(left sidebar on desktop, bottom bar on mobile) and search the "
+    "building name there."
+)
+
 def generate_answer(user_msg: str, classifications: list[dict], results: list[dict]) -> str:
     # Day reflects today() (so FAKE_TODAY works); time-of-day stays real-clock.
     server_day_name = calendar.day_name[today().isoweekday() - 1]
@@ -565,7 +574,10 @@ def chat():
 
     logger.debug("[%s] RESULTS: %s", req_id, results)
 
-    reply = generate_answer(user_msg, actionable, results)
+    if all(r["type"] == "LOCATION" for r in results):
+        reply = LOCATION_REPLY
+    else:
+        reply = generate_answer(user_msg, actionable, results)
 
     if SERVER_TAG:
         reply = f"{SERVER_TAG} {reply}"
