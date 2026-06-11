@@ -447,6 +447,8 @@ STYLE:
 - Short paragraphs are okay.
 - Bullet points are okay.
 - Always mention the actual day_name when answering.
+- Write clock times in 12-hour format with AM/PM (data times are 24-hour:
+  "13:00" => "1:00 PM").
 
 SPECIAL RULES:
 - For MEAL:
