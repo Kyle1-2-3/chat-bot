@@ -314,6 +314,17 @@
     .bubble-user { max-width: 84%; }
     .composer__hint { display: none; }
     .composer__meta { justify-content: flex-end; }
+    /* Welcome screen: keep the composer pinned to the bottom — centered, it
+       rides up to mid-screen when the keyboard opens */
+    .app--welcome { justify-content: flex-start; }
+    .app--welcome .thread-scroll { flex: 1 1 auto; overflow-y: auto; }
+    .app--welcome .thread { padding: 16px 12px 22px; }
+    .app--welcome .hero { min-height: calc(100dvh - 60px - var(--dock-h)); padding: 24px 0; }
+    .app--welcome .composer-dock {
+      position: sticky; background: var(--header); border-top: 1px solid var(--line);
+      -webkit-backdrop-filter: saturate(160%) blur(18px);
+      backdrop-filter: saturate(160%) blur(18px);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .thread-scroll { scroll-behavior: auto; }
