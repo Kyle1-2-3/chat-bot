@@ -15,13 +15,13 @@
 **Files:**
 - Create: `/tmp/drawer-probe/probe.mjs` (throwaway tooling, not committed)
 
-- [ ] **Step 1: Set up puppeteer-core in a temp dir**
+- [x] **Step 1: Set up puppeteer-core in a temp dir**
 
 ```bash
 mkdir -p /tmp/drawer-probe && cd /tmp/drawer-probe && npm init -y >/dev/null && npm i --silent puppeteer-core
 ```
 
-- [ ] **Step 2: Write the probe**
+- [x] **Step 2: Write the probe**
 
 Create `/tmp/drawer-probe/probe.mjs`:
 
@@ -79,7 +79,7 @@ console.log(fails.length ? `\n${fails.length} FAILED` : "\nALL PASS");
 process.exit(fails.length ? 1 : 0);
 ```
 
-- [ ] **Step 3: Run it — must FAIL (current page still has the sidebar, no #menuBtn)**
+- [x] **Step 3: Run it — must FAIL (current page still has the sidebar, no #menuBtn)**
 
 Run: `node /tmp/drawer-probe/probe.mjs`
 Expected: `FAIL mobile: old sidebar gone`, `FAIL mobile: hamburger fixed top-left`, `FAIL mobile: composer flush to bottom` (dock sits 64px up), same for desktop; exit code 1.
@@ -91,7 +91,7 @@ Expected: `FAIL mobile: old sidebar gone`, `FAIL mobile: hamburger fixed top-lef
 **Files:**
 - Modify: `static/index.html` (CSS ~lines 47, 220-242, 289-305; markup ~lines 315-324; JS ~lines 563-576)
 
-- [ ] **Step 1: Remove the rail width variable**
+- [x] **Step 1: Remove the rail width variable**
 
 Delete this line from the `:root` block (line ~47):
 
@@ -99,7 +99,7 @@ Delete this line from the `:root` block (line ~47):
     --rail-w: 68px;
 ```
 
-- [ ] **Step 2: Replace the sidebar CSS block**
+- [x] **Step 2: Replace the sidebar CSS block**
 
 Replace everything from `/* ---------------- Sidebar (view switcher) ---------------- */` through `.app, .map-view { margin-left: var(--rail-w); }` (lines ~221-242) with:
 
@@ -151,7 +151,7 @@ Replace everything from `/* ---------------- Sidebar (view switcher) -----------
   .drawer-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ```
 
-- [ ] **Step 3: Clear the hamburger in the map header**
+- [x] **Step 3: Clear the hamburger in the map header**
 
 In `.map-head` change `padding: 12px 16px;` to:
 
@@ -159,7 +159,7 @@ In `.map-head` change `padding: 12px 16px;` to:
     padding: 12px 16px 12px calc(64px + env(safe-area-inset-left));
 ```
 
-- [ ] **Step 4: Clean the ≤640px media query**
+- [x] **Step 4: Clean the ≤640px media query**
 
 Inside `@media (max-width: 640px)` delete these four rules (the rest stays):
 
@@ -175,7 +175,7 @@ Inside `@media (max-width: 640px)` delete these four rules (the rest stays):
     .map-view { height: calc(100dvh - 64px); }
 ```
 
-- [ ] **Step 5: Add the drawer transition to the reduced-motion block**
+- [x] **Step 5: Add the drawer transition to the reduced-motion block**
 
 Inside `@media (prefers-reduced-motion: reduce)` add:
 
@@ -183,7 +183,7 @@ Inside `@media (prefers-reduced-motion: reduce)` add:
     .drawer, .scrim { transition: none; }
 ```
 
-- [ ] **Step 6: Replace the sidebar markup**
+- [x] **Step 6: Replace the sidebar markup**
 
 Replace the whole `<nav class="sidebar" ...>...</nav>` block (lines ~315-324) with:
 
@@ -207,7 +207,7 @@ Replace the whole `<nav class="sidebar" ...>...</nav>` block (lines ~315-324) wi
 
 (IDs `navChat`/`navMap` are kept so the view-switch JS diff stays minimal.)
 
-- [ ] **Step 7: Replace the view-switch JS**
+- [x] **Step 7: Replace the view-switch JS**
 
 Replace the `// ---------------- Sidebar view switching ----------------` block (from that comment through the two `addEventListener` lines, ~563-576) with:
 
@@ -251,16 +251,16 @@ Replace the `// ---------------- Sidebar view switching ----------------` block 
 
 ### Task 3: Verify (GREEN)
 
-- [ ] **Step 1: Run the probe**
+- [x] **Step 1: Run the probe**
 
 Run: `node /tmp/drawer-probe/probe.mjs`
 Expected: every line `PASS …`, final `ALL PASS`, exit code 0.
 
-- [ ] **Step 2: Eyeball the screenshots**
+- [x] **Step 2: Eyeball the screenshots**
 
 Read `/tmp/drawer_mobile_open.png`, `/tmp/drawer_mobile_map.png`, `/tmp/drawer_desktop_open.png`, `/tmp/drawer_desktop_map.png` and check: drawer looks like the Gemini reference (panel over scrim), active item highlighted, nothing overlapping, no leftover bottom bar.
 
-- [ ] **Step 3: Run the python suite (should be untouched)**
+- [x] **Step 3: Run the python suite (should be untouched)**
 
 Run: `venv/bin/python -m pytest tests/ -q`
 Expected: `109 passed`.
@@ -269,7 +269,7 @@ Expected: `109 passed`.
 
 ### Task 4: Commit, deploy, live-verify
 
-- [ ] **Step 1: Commit**
+- [x] **Step 1: Commit**
 
 ```bash
 git add static/index.html
@@ -278,18 +278,18 @@ git commit -m "Replace rail/bottom-bar nav with a top-left hamburger drawer
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 2: Merge to main and push (auto-deploys)**
+- [x] **Step 2: Merge to main and push (auto-deploys)**
 
 ```bash
 git checkout main && git merge a --ff-only && git push origin main a && git checkout a
 ```
 
-- [ ] **Step 3: Watch the Actions run**
+- [x] **Step 3: Watch the Actions run**
 
 Run: `gh run watch $(gh run list --limit 1 --json databaseId --jq '.[0].databaseId') --exit-status`
 Expected: test + deploy both `success`.
 
-- [ ] **Step 4: Live-verify**
+- [x] **Step 4: Live-verify**
 
 Point the probe at the live site (`const URL = "https://brentwoodchatbot.xyz/"`) and re-run.
 Expected: `ALL PASS`. (Live page fetches `/chat` only on send, so the probe is unaffected.)
