@@ -528,6 +528,28 @@ SPECIAL RULES:
 Return plain English text only.
 """
 
+# Dev cheat-code: a message containing this phrase skips the school pipeline
+# entirely and talks to Gemini directly (no classifier, no school system
+# prompt) — like chatting with plain Gemini. Keep the phrase private.
+DEV_TRIGGER = "/천마리의새가우는소리"
+
+def generate_raw_answer(user_msg: str, memory: str = "") -> str:
+    memory = (memory or "").strip()[:1500]
+    context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
+    try:
+        r = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=f"{context}{user_msg}",
+        )
+        return (r.text or "").strip()
+    except httpx.TimeoutException:
+        logger.error("generate_raw_answer: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
+    except genai_errors.APIError as e:
+        logger.error("generate_raw_answer: Gemini API error %s: %s", e.code, e.message)
+    except Exception:
+        logger.exception("generate_raw_answer failed")
+    return "Sorry — something went wrong on my end. Please try again in a moment 🙂"
+
 # Pure where-is questions need no data and no LLM phrasing — answer statically
 # and skip the second Gemini call. Mixed messages still go through the LLM
 # (the "For LOCATION" rule above covers them).
@@ -582,6 +604,11 @@ def chat():
         return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
 
     logger.debug("[%s] USER: %s", req_id, user_msg)
+
+    if DEV_TRIGGER in user_msg:
+        logger.info("[%s] dev trigger: raw Gemini chat", req_id)
+        raw_msg = user_msg.replace(DEV_TRIGGER, " ").strip() or "Hi!"
+        return jsonify({"reply": generate_raw_answer(raw_msg, memory)})
 
     classifications = classify_query(user_msg, memory)
 
