@@ -44,7 +44,6 @@
 
     --col: 680px;
     --dock-h: 96px;
-    --rail-w: 68px;
   }
 
   * { box-sizing: border-box; }
@@ -218,28 +217,51 @@
   .counter { font-size: 12px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .counter.is-warn { color: var(--warn); }
 
-  /* ---------------- Sidebar (view switcher) ---------------- */
-  .sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 40;
-    width: var(--rail-w);
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
-    padding: 14px 0;
-    background: var(--header);
+  /* ---------------- Menu button + drawer (view switcher) ---------------- */
+  .menu-btn {
+    position: fixed; z-index: 50;
+    top: calc(10px + env(safe-area-inset-top));
+    left: calc(12px + env(safe-area-inset-left));
+    width: 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--line); cursor: pointer;
+    background: var(--header); color: var(--text-muted);
     -webkit-backdrop-filter: saturate(160%) blur(18px);
     backdrop-filter: saturate(160%) blur(18px);
-    border-right: 1px solid var(--line);
   }
-  .nav-btn {
-    width: 52px; padding: 8px 0 6px; border: none; border-radius: 14px;
-    background: transparent; color: var(--text-muted); cursor: pointer;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    font-family: var(--font); font-size: 11px; font-weight: 600;
+  .menu-btn svg { width: 22px; height: 22px; }
+  .menu-btn:hover { background: var(--surface-2); color: var(--text); }
+  .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .scrim {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity 200ms ease;
   }
-  .nav-btn svg { width: 22px; height: 22px; }
-  .nav-btn:hover { background: var(--surface-2); color: var(--text); }
-  .nav-btn.is-active { background: var(--accent-soft); color: var(--accent); }
-  .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .app, .map-view { margin-left: var(--rail-w); }
+  .scrim.is-open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 70;
+    width: 260px; display: flex; flex-direction: column; gap: 4px;
+    padding: calc(14px + env(safe-area-inset-top)) 12px 14px calc(12px + env(safe-area-inset-left));
+    background: var(--surface); border-right: 1px solid var(--line);
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform 200ms ease, visibility 0s linear 200ms;
+  }
+  .drawer.is-open {
+    transform: translateX(0); visibility: visible;
+    transition: transform 200ms ease;
+  }
+  .drawer__title { font-size: 15px; font-weight: 700; color: var(--text); padding: 10px 12px 14px; }
+  .drawer-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border: none; border-radius: 9999px;
+    background: transparent; color: var(--text-muted); cursor: pointer; text-align: left;
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+  }
+  .drawer-item svg { width: 20px; height: 20px; flex: 0 0 auto; }
+  .drawer-item:hover { background: var(--surface-2); color: var(--text); }
+  .drawer-item.is-active { background: var(--accent-soft); color: var(--accent); }
+  .drawer-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---------------- Map view ---------------- */
   .map-view { height: 100dvh; display: flex; flex-direction: column; }
@@ -247,7 +269,7 @@
   .map-view[hidden] { display: none; }
   .map-head {
     flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px;
+    padding: 12px 16px 12px calc(64px + env(safe-area-inset-left));
     background: var(--header);
     -webkit-backdrop-filter: saturate(160%) blur(18px);
     backdrop-filter: saturate(160%) blur(18px);
@@ -292,36 +314,33 @@
     .bubble-user { max-width: 84%; }
     .composer__hint { display: none; }
     .composer__meta { justify-content: flex-end; }
-    .sidebar {
-      top: auto; bottom: 0; left: 0; right: 0; width: auto;
-      flex-direction: row; justify-content: center; gap: 24px;
-      padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
-      border-right: none; border-top: 1px solid var(--line);
-    }
-    .app, .map-view { margin-left: 0; }
-    .composer-dock { bottom: 64px; }
-    .map-view { height: calc(100dvh - 64px); }
   }
   @media (prefers-reduced-motion: reduce) {
     .thread-scroll { scroll-behavior: auto; }
     .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
     .send:not(:disabled):active, .copy-btn:active, .retry:active { transform: none; }
     .map-pin__dot { animation: none; }
+    .drawer, .scrim { transition: none; }
   }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
-  <nav class="sidebar" aria-label="Views">
-    <button type="button" class="nav-btn is-active" id="navChat">
+  <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-controls="drawer" aria-expanded="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-label="Views">
+    <div class="drawer__title">Brentwood Assistant</div>
+    <button type="button" class="drawer-item is-active" id="navChat">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span>Chat</span>
     </button>
-    <button type="button" class="nav-btn" id="navMap">
+    <button type="button" class="drawer-item" id="navMap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
       <span>Map</span>
     </button>
-  </nav>
+  </aside>
   <div class="app">
     <!-- Thread -->
     <main class="thread-scroll" id="scroll">
@@ -560,10 +579,29 @@
     ro.observe(dockEl);
   }
 
-  // ---------------- Sidebar view switching ----------------
+  // ---------------- Drawer view switching ----------------
+  const menuBtn    = document.getElementById("menuBtn");
+  const drawerEl   = document.getElementById("drawer");
+  const scrimEl    = document.getElementById("scrim");
   const navChatBtn = document.getElementById("navChat");
   const navMapBtn  = document.getElementById("navMap");
   const mapViewEl  = document.getElementById("mapView");
+
+  function setDrawer(open) {
+    drawerEl.classList.toggle("is-open", open);
+    scrimEl.classList.toggle("is-open", open);
+    menuBtn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      (drawerEl.querySelector(".drawer-item.is-active") || navChatBtn).focus();
+    } else {
+      menuBtn.focus();
+    }
+  }
+  menuBtn.addEventListener("click", () => setDrawer(!drawerEl.classList.contains("is-open")));
+  scrimEl.addEventListener("click", () => setDrawer(false));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && drawerEl.classList.contains("is-open")) setDrawer(false);
+  });
 
   function showView(view) {
     const isMap = view === "map";
@@ -572,8 +610,8 @@
     navChatBtn.classList.toggle("is-active", !isMap);
     navMapBtn.classList.toggle("is-active", isMap);
   }
-  navChatBtn.addEventListener("click", () => showView("chat"));
-  navMapBtn.addEventListener("click", () => showView("map"));
+  navChatBtn.addEventListener("click", () => { showView("chat"); setDrawer(false); });
+  navMapBtn.addEventListener("click", () => { showView("map"); setDrawer(false); });
 
   // ---------------- Campus map search ----------------
   // x/y are percentages of the map image (1536x1024).
