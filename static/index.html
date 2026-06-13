@@ -502,6 +502,16 @@
     scrollToBottom();
   }
 
+  // Open menu/search links in a new tab so a student never loses the chat.
+  if (window.DOMPurify) {
+    DOMPurify.addHook("afterSanitizeAttributes", function (node) {
+      if (node.tagName === "A" && node.getAttribute("href")) {
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noopener noreferrer");
+      }
+    });
+  }
+
   // Render an AI reply as sanitized markdown (bold, lists, etc.). Falls back
   // to plain text if a CDN lib is missing or anything throws.
   function renderRichText(el, text) {

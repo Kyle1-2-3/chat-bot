@@ -13,6 +13,7 @@ import calendar
 import json
 import logging
 import uuid
+import urllib.parse
 from contextlib import closing
 
 load_dotenv()
@@ -355,6 +356,29 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
 # ---------------------------
 # Build grounded result
 # ---------------------------
+def menu_search_items(menu_content: str | None) -> list[dict]:
+    """Split a menu into its individual dishes, each paired with a Google image
+    search link. Menu names like "Banh Mi Vietnamese Pork Roll ..." mean little
+    on their own, so the link lets a student see what the dish actually looks
+    like. One dish per line; blank lines (e.g. the gap between Sunday brunch
+    halves) are dropped."""
+    items = []
+    for line in (menu_content or "").splitlines():
+        name = line.strip()
+        if not name:
+            continue
+        url = "https://www.google.com/search?tbm=isch&q=" + urllib.parse.quote_plus(name)
+        items.append({"name": name, "search_url": url})
+    return items
+
+
+def attach_menu_links(rows: list[dict]) -> list[dict]:
+    """Add a "menu_items" link list to each meal row (in place) and return rows."""
+    for r in rows:
+        r["menu_items"] = menu_search_items(r.get("menu_content"))
+    return rows
+
+
 def build_result_from_classification(cls: dict, user_msg: str) -> dict:
     intent = cls.get("intent", "UNKNOWN")
     day_ref = cls.get("day_ref", "ANY")
@@ -367,7 +391,7 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
     day_name = calendar.day_name[day_id - 1]
 
     if intent == "MEAL":
-        rows = fetch_meal(day_id, meal_type) if meal_type else []
+        rows = attach_menu_links(fetch_meal(day_id, meal_type)) if meal_type else []
         return {
             "type": "MEAL",
             "day_id": day_id,
@@ -377,7 +401,7 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "MEALS_DAY":
-        rows = fetch_day_meals(day_id)
+        rows = attach_menu_links(fetch_day_meals(day_id))
         return {
             "type": "MEALS_DAY",
             "day_id": day_id,
@@ -483,6 +507,14 @@ STYLE:
   "13:00" => "1:00 PM").
 
 SPECIAL RULES:
+- MENU LINKS (applies to MEAL and MEALS_DAY):
+  - Each row has "menu_items": a list of {name, search_url}, one per dish.
+  - Render every dish as a Markdown link to its search_url, e.g.
+    [Banh Mi Vietnamese Pork Roll](https://www.google.com/search?...), so a
+    student can tap it to see what the dish looks like.
+  - Copy each search_url EXACTLY as given — never edit, shorten, or invent one.
+  - Use the names from "menu_items" for the dishes; do not also print the raw
+    "menu_content" text separately (it is the same dishes, just unsplit).
 - For MEAL:
   - State the menu once, then give the time(s) and which group each time applies to.
   - If the groups (e.g. Junior/Senior) share the SAME menu, say the menu only ONCE
