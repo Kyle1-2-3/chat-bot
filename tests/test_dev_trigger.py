@@ -49,6 +49,23 @@ def test_trigger_passes_memory_context(monkeypatch):
     assert "User: hi" in calls[0]["contents"]
 
 
+def test_trigger_answers_in_korean(monkeypatch):
+    calls = _capture_llm(monkeypatch)
+    appmod.app.test_client().post(
+        "/chat", json={"message": f"{TRIGGER} say hi"})
+    assert "Korean only" in calls[0]["contents"]
+
+
+def test_trigger_keeps_deep_memory(monkeypatch):
+    calls = _capture_llm(monkeypatch)
+    # ~10 Q&A pairs; well past the 1500-char pipeline cap but within RAW_MEMORY_CHARS.
+    memory = "\n".join(f"Student: q{i}\nAssistant: a{i} {'x' * 200}" for i in range(10))
+    appmod.app.test_client().post(
+        "/chat", json={"message": f"{TRIGGER} continue", "memory": memory})
+    contents = calls[0]["contents"]
+    assert "q0" in contents and "q9" in contents  # oldest and newest both survive
+
+
 def test_normal_messages_still_use_pipeline(monkeypatch):
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
         {"intent": "GREETING", "day_ref": "ANY", "meal_type": None},

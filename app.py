@@ -565,13 +565,20 @@ Return plain English text only.
 # prompt) — like chatting with plain Gemini. Keep the phrase private.
 DEV_TRIGGER = "/천마리의새가우는소리"
 
+# Raw chat keeps a larger window than the school pipeline (~10 Q&A pairs) so the
+# dev can hold a real back-and-forth instead of a one-shot question.
+RAW_MEMORY_CHARS = 8000
+
+# Raw chat has no school system prompt, but it must still answer in Korean.
+RAW_LANG_INSTRUCTION = "[Instruction] Respond in Korean only, regardless of the user's language.\n\n"
+
 def generate_raw_answer(user_msg: str, memory: str = "") -> str:
-    memory = (memory or "").strip()[:1500]
+    memory = (memory or "").strip()[:RAW_MEMORY_CHARS]
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
     try:
         r = client.models.generate_content(
             model=GEMINI_MODEL,
-            contents=f"{context}{user_msg}",
+            contents=f"{RAW_LANG_INSTRUCTION}{context}{user_msg}",
         )
         return (r.text or "").strip()
     except httpx.TimeoutException:

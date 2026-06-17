@@ -558,9 +558,12 @@
   }
 
   // ---------------- Memory (turns prior to the in-flight message) ----------------
-  function buildMemory() {
+  const DEV_TRIGGER = "/천마리의새가우는소리";
+  function buildMemory(userText = "") {
     const prior = conversation.slice(0, -1);
-    return prior.slice(-4)
+    // Dev raw-chat gets a deeper window (~10 Q&A pairs) than the normal 4 turns.
+    const turns = userText.includes(DEV_TRIGGER) ? 20 : 4;
+    return prior.slice(-turns)
       .map(t => (t.role === "user" ? "Student" : "Assistant") + ": " + t.text)
       .join("\n");
   }
@@ -579,7 +582,7 @@
     const { bubble, col } = makeBotTurn();
     showTyping(bubble);
 
-    const memory = buildMemory();
+    const memory = buildMemory(userText);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
