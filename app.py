@@ -17,6 +17,7 @@ import uuid
 import urllib.parse
 from contextlib import closing
 from school_knowledge import search_school_knowledge
+from school_calendar import calendar_result, leave_on
 
 load_dotenv()
 
@@ -261,18 +262,31 @@ Schema:
 {
   "requests": [
     {
-      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "AFTERNOON" | "PERSONAL_ACTIVITY" | "PERSONAL_SCHOOL" | "SCHOOL_INFO" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "LOCATION" | "UNKNOWN",
+      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "AFTERNOON" | "PERSONAL_ACTIVITY" | "PERSONAL_SCHOOL" | "SCHOOL_INFO" | "SCHOOL_BREAKS" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "LOCATION" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
       "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
       "grade": <integer 8-12 or null>,
       "event_name": "ASSEMBLY" | "TUTORIAL" | "ADVISORY" | null,
-      "school_query": <concise English search terms for SCHOOL_INFO only, otherwise null>
+      "school_query": <concise English topic for SCHOOL_INFO/SCHOOL_BREAKS, otherwise null>,
+      "calendar_date": <YYYY-MM-DD for an explicit date in SCHEDULE/AFTERNOON, otherwise null>
     }
   ]
 }
 
 Rules for each request:
 - Greeting/small talk only => GREETING
+- School vacations, holidays, leave dates, midterm breaks, next break, days until
+  a break, and returning to campus or resuming classes after a break => SCHOOL_BREAKS.
+  Examples: "when is winter break", "다음 방학 언제야", "봄방학 며칠 남았어",
+  "when do we come back", "all breaks this year", "summer holiday dates".
+  Set school_query to the requested break, year and question, resolving recent
+  follow-ups: after asking about winter break, "when do we come back" becomes
+  "Winter Break return to campus and classes resume".
+  Cookie break is a daily timetable item, NOT SCHOOL_BREAKS.
+- For a schedule/afternoon on an explicit calendar date (e.g. "December 25",
+  "10월 9일 시간표"), set calendar_date to YYYY-MM-DD. Use the current date
+  provided below to resolve an omitted year to the next such date. Never turn
+  an explicit date into a weekday-only query. Relative days use day_ref as usual.
 - Public school facts about named staff, houseparents, facilities, services,
   support, courses, programs, admissions, or school life => SCHOOL_INFO.
   school_query must contain the specific entity and topic in English, resolving
@@ -361,7 +375,7 @@ UNKNOWN_REQUEST = {
 
 VALID_INTENTS = {
     "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE", "AFTERNOON", "PERSONAL_ACTIVITY",
-    "PERSONAL_SCHOOL", "SCHOOL_INFO",
+    "PERSONAL_SCHOOL", "SCHOOL_INFO", "SCHOOL_BREAKS",
     "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "BEDTIME",
     "EVENT_SEARCH", "LOCATION", "UNKNOWN"
 }
@@ -404,9 +418,14 @@ def validate_request(obj: dict) -> dict:
         "grade": grade,
         "event_name": event_name,
     }
-    if intent == "SCHOOL_INFO":
+    if intent in {"SCHOOL_INFO", "SCHOOL_BREAKS"}:
         school_query = obj.get("school_query")
         validated["school_query"] = school_query.strip()[:240] if isinstance(school_query, str) else ""
+    if intent in {"SCHEDULE", "AFTERNOON"} and obj.get("calendar_date"):
+        try:
+            validated["calendar_date"] = date.fromisoformat(obj["calendar_date"]).isoformat()
+        except (TypeError, ValueError):
+            pass
     return validated
 
 def classify_query(user_msg: str, memory: str = "") -> list[dict]:
@@ -415,7 +434,7 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
 
     memory = (memory or "").strip()[:1500]
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
-    prompt = f"{context}[User Message]\n{user_msg}\n\nReturn JSON only."
+    prompt = f"Current school date: {today().isoformat()}\n{context}[User Message]\n{user_msg}\n\nReturn JSON only."
     try:
         r = client.models.generate_content(
             model=GEMINI_MODEL,
@@ -509,14 +528,22 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
             "records": search_school_knowledge(cls.get("school_query") or user_msg),
         }
 
+    if intent == "SCHOOL_BREAKS":
+        return {"type": "SCHOOL_BREAKS", "requested_topic": cls.get("school_query") or user_msg,
+                **calendar_result(today())}
+
     if intent == "AFTERNOON":
-        if day_ref == "ANY":
+        if day_ref == "ANY" and not cls.get("calendar_date"):
             return {"type": "AFTERNOON", **afternoon_rules()}
-        sched_date = resolve_date(day_ref, user_msg)
+        sched_date = date.fromisoformat(cls["calendar_date"]) if cls.get("calendar_date") else resolve_date(day_ref, user_msg)
+        leave = leave_on(sched_date)
+        rules = afternoon_rules(sched_date.isoweekday())
+        if leave:
+            rules["patterns"] = []
         return {
             "type": "AFTERNOON", "date": sched_date.isoformat(),
             "day_name": calendar.day_name[sched_date.weekday()],
-            **afternoon_rules(sched_date.isoweekday()),
+            **rules, "school_leave": leave,
         }
 
     day_id = resolve_day_id(day_ref, user_msg)
@@ -542,14 +569,20 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "SCHEDULE":
-        sched_date = resolve_date(day_ref, user_msg)
+        sched_date = date.fromisoformat(cls["calendar_date"]) if cls.get("calendar_date") else resolve_date(day_ref, user_msg)
         rows = fetch_timeline_by_date(sched_date.isoformat())
+        leave = leave_on(sched_date)
+        afternoon = afternoon_rules(sched_date.isoweekday())
+        if leave:
+            afternoon["patterns"] = []
+            if leave["full_day"]:
+                rows = [r for r in rows if r["item_type"] == "EVENT"]
         return {
             "type": "SCHEDULE",
             "date": sched_date.isoformat(),
             "day_name": calendar.day_name[sched_date.weekday()],
             "rows": rows,
-            "afternoon": afternoon_rules(sched_date.isoweekday()),
+            "afternoon": afternoon, "school_leave": leave,
         }
 
     if intent == "MEAL_SIGNIN":
@@ -645,6 +678,30 @@ STYLE:
   "13:00" => "1:00 PM").
 
 SPECIAL RULES:
+- For SCHOOL_BREAKS:
+  - Use the official dated leave records, including the academic year. Match the
+    requested_topic (which resolves follow-ups) and named break/year; do not
+    substitute another year if it is missing.
+    "Next break" is the earliest start_date after today; if already on leave,
+    distinguish the current leave from the next one. Use days_until_start for
+    countdowns; negative values mean the break already started.
+  - Distinguish start_date, last_leave_date, return_date (return to campus), and
+    classes_resume_date. Calendar all-day ranges already have inclusive last
+    dates in this JSON. Do NOT subtract another day. Null means unconfirmed.
+  - start_time is the calendar's departure/leave opening time, not a student's
+    bus time or flight time. 03:00 marks early travel. A 13:00 leave start does
+    not cancel morning classes. Summer departure is not a complete break range.
+  - Cite source_url; use travel_source_url for a verified return date. Dates may
+    change. Mention source_note if the user asks about the affected travel detail.
+    Never invent a summer return date or apply last year's dates to another year.
+- When SCHEDULE or AFTERNOON includes school_leave, lead with that dated leave.
+  Do not supply regular art/sport patterns. On full_day leave there are no normal
+  academic classes; separately supplied EVENT rows may still be activities.
+  A partial departure day can have morning classes: use only the actual rows,
+  and do not assume normal classes up to departure if rows are missing.
+  return_date_unknown means summer has started but the return date and regular
+  timetable are unconfirmed; do not declare a confirmed school-closure interval.
+  State the available return and class-resumption dates and cite source_url.
 - For SCHOOL_INFO:
   - Answer only facts explicitly supported by the supplied records. A matching
     search term alone does NOT establish the answer. If there is no direct

@@ -1,0 +1,95 @@
+{
+  "checked_on": "2026-09-23",
+  "source_url": "https://www.brentwood.ca/calendar/",
+  "leaves": [
+    {
+      "name": "Thanksgiving Leave",
+      "academic_year": "2026–2027",
+      "start_date": "2026-10-09",
+      "start_time": "13:00",
+      "last_leave_date": "2026-10-12",
+      "classes_resume_date": "2026-10-13",
+      "source_url": "https://www.brentwood.ca/calendar/",
+      "source_title": "1pm Thanksgiving Leave",
+      "return_date": "2026-10-12",
+      "travel_source_url": "https://travel.brentwood.ca/fall-term/thanksgiving-leave",
+      "travel_checked_on": "2026-09-23"
+    },
+    {
+      "name": "Fall Midterm Break",
+      "academic_year": "2026–2027",
+      "start_date": "2026-11-06",
+      "start_time": "03:00",
+      "last_leave_date": "2026-11-11",
+      "classes_resume_date": "2026-11-12",
+      "source_url": "https://www.brentwood.ca/calendar/",
+      "source_title": "3am Fall Midterm Break",
+      "return_date": "2026-11-11",
+      "travel_source_url": "https://travel.brentwood.ca/fall-term/november-midterm",
+      "travel_checked_on": "2026-09-23"
+    },
+    {
+      "name": "Winter Break",
+      "academic_year": "2026–2027",
+      "start_date": "2026-12-11",
+      "start_time": "03:00",
+      "last_leave_date": "2027-01-04",
+      "classes_resume_date": "2027-01-05",
+      "source_url": "https://www.brentwood.ca/calendar/",
+      "source_title": "3am Winter Break",
+      "return_date": "2027-01-04",
+      "travel_source_url": "https://travel.brentwood.ca/winter-term/winter-break",
+      "travel_checked_on": "2026-09-23"
+    },
+    {
+      "name": "Winter Midterm Break",
+      "academic_year": "2026–2027",
+      "start_date": "2027-02-04",
+      "start_time": "03:00",
+      "last_leave_date": "2027-02-09",
+      "classes_resume_date": "2027-02-10",
+      "source_url": "https://www.brentwood.ca/calendar/",
+      "source_title": "3am Winter Midterm Break",
+      "return_date": "2027-02-09",
+      "travel_source_url": "https://travel.brentwood.ca/winter-term/winter-midterm",
+      "travel_checked_on": "2026-09-23"
+    },
+    {
+      "name": "Spring Break",
+      "academic_year": "2026–2027",
+      "start_date": "2027-03-12",
+      "start_time": "03:00",
+      "last_leave_date": "2027-03-30",
+      "classes_resume_date": "2027-03-31",
+      "source_url": "https://www.brentwood.ca/calendar/",
+      "source_title": "3am Spring Break",
+      "return_date": "2027-03-30",
+      "travel_source_url": "https://travel.brentwood.ca/winter-term/spring-break",
+      "travel_checked_on": "2026-09-23"
+    },
+    {
+      "name": "May Midterm Break",
+      "academic_year": "2026–2027",
+      "start_date": "2027-05-06",
+      "start_time": "03:00",
+      "last_leave_date": "2027-05-11",
+      "classes_resume_date": "2027-05-12",
+      "source_url": "https://www.brentwood.ca/calendar/",
+      "source_title": "3am May Midterm Break",
+      "return_date": "2027-05-11",
+      "travel_source_url": "https://travel.brentwood.ca/spring-term/may-midterm",
+      "travel_checked_on": "2026-09-23"
+    },
+    {
+      "name": "Summer Break",
+      "academic_year": "2026–2027",
+      "start_date": "2027-06-11",
+      "start_time": "15:30",
+      "last_leave_date": null,
+      "classes_resume_date": null,
+      "source_url": "https://www.brentwood.ca/calendar/",
+      "source_title": "Student Depart for Summer Break",
+      "source_note": "The live calendar lists summer departure on June 11, 2027, from 3:30 PM. The Travel Closing Day page still labels its date June 11, 2026; confirm individual travel arrangements with the school. A summer return date is not published in this snapshot."
+    }
+  ]
+}

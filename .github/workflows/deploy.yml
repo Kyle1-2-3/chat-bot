@@ -50,7 +50,7 @@ jobs:
             cp db/school.db ~/backups/school.db.deploy.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
             venv/bin/python set_up_db.py
             venv/bin/python sync_menus.py
-            venv/bin/python sync_schedule.py
+            venv/bin/python sync_school_data.py
             sudo install -m 644 docs/server/sync-schedule.service docs/server/sync-schedule.timer /etc/systemd/system/
             sudo systemctl daemon-reload
             sudo systemctl enable sync-schedule.timer
