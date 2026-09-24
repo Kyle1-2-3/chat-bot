@@ -5,6 +5,12 @@ day at 00:00 America/Vancouver, including both the newly started day and tomorro
 Use current system timezone data (2026b or newer) so Vancouver's permanent UTC−7
 rule is respected after November 2026. Persistent timers catch up after downtime.
 
+The timer and deployment now run `python sync_school_data.py`, which independently
+refreshes the official public school leave calendar and the personal MySchool
+feed. A failed public fetch preserves the last leave snapshot and still attempts
+the block sync; either failure makes the job fail visibly in systemd/CI.
+See [the leave calendar notes](../school-calendar.md) for sources and date semantics.
+
 The server's private `.env` must contain the current `MSM_ICAL_URL`. Remove
 `FAKE_TODAY` and any April demo fixture path before enabling live schedules.
 Never commit or print the tokenized feed URL. GitHub Actions installs the tracked

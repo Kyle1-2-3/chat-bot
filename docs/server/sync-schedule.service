@@ -1,5 +1,5 @@
 [Unit]
-Description=Sync upcoming MySchool blocks and special events
+Description=Sync official school leaves and upcoming MySchool blocks and events
 Wants=network-online.target
 After=network-online.target
 
@@ -8,5 +8,5 @@ Type=oneshot
 User=ec2-user
 WorkingDirectory=/home/ec2-user/chat-bot
 Environment=TZ=America/Vancouver
-ExecStart=/home/ec2-user/chat-bot/venv/bin/python sync_schedule.py
-TimeoutStartSec=180
+ExecStart=/home/ec2-user/chat-bot/venv/bin/python sync_school_data.py
+TimeoutStartSec=300
