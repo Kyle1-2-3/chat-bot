@@ -179,8 +179,8 @@ def fetch_meal(day_id: int, meal_type: str) -> list[dict]:
 def fetch_day_meals(day_id: int) -> list[dict]:
     return query(_MEAL_SELECT + _MEAL_ORDER, (day_id,))
 
-def fetch_dorm_signins(day_id: int) -> list[dict]:
-    return query("""
+def fetch_dorm_signins(day_id: int, grade: int | None = None) -> list[dict]:
+    rows = query("""
         SELECT gg.group_name, dsr.start_time, dsr.note, dsr.rule_order
         FROM DormScheduleRules dsr
         JOIN DormSchedules ds ON dsr.dorm_schedule_id = ds.dorm_schedule_id
@@ -189,6 +189,25 @@ def fetch_dorm_signins(day_id: int) -> list[dict]:
         WHERE ds.day_id = ? AND rt.type_name = 'SIGN_IN'
         ORDER BY gg.group_id, dsr.rule_order
     """, (day_id,))
+    grade_rows = query("""
+        SELECT g.grade_id, gg.group_name FROM Grades g
+        JOIN GradeGroups gg ON gg.group_id = g.group_id
+        WHERE g.grade_id BETWEEN 9 AND 12 ORDER BY g.grade_id
+    """)
+    overrides = {(r["grade_id"], r["rule_order"]): r["start_time"] for r in query(
+        "SELECT grade_id, rule_order, start_time FROM DormSigninOverrides WHERE day_id = ?", (day_id,))}
+    result = []
+    for row in rows:
+        group_grades = [g["grade_id"] for g in grade_rows if g["group_name"] == row["group_name"]]
+        relevant = [g for g in group_grades if grade is None or g == grade]
+        by_time = {}
+        for grade_id in relevant:
+            start = overrides.get((grade_id, row["rule_order"]), row["start_time"])
+            by_time.setdefault(start, []).append(grade_id)
+        for start, grades in by_time.items():
+            label = row["group_name"] if grades == group_grades else "Grade " + ", ".join(map(str, grades))
+            result.append({**row, "group_name": label, "grade_ids": grades, "start_time": start})
+    return result
 
 def fetch_timeline_by_date(sched_date: str) -> list[dict]:
     return query("""
@@ -302,7 +321,10 @@ Rules for each request:
   and the specific item is read from it. (This is NOT EVENT_SEARCH; EVENT_SEARCH
   is only for assembly/tutorial/advisory when no day is given.)
 - If user asks whether a specific meal has sign-in, classify as MEAL_SIGNIN
-- If user asks general sign-in time, dorm sign-in, curfew, residence sign-in, or "sign in time for saturday", classify as SIGNIN_SUMMARY
+- If user asks general sign-in time, dorm sign-in, curfew, residence sign-in, or
+  "sign in time for saturday", classify as SIGNIN_SUMMARY. Extract the stated
+  grade into grade (including a grade established in recent conversation).
+  "grade 12 Saturday sign in" => SIGNIN_SUMMARY, grade=12, day_ref=SATURDAY.
 - If user asks whether a grade is Junior or Senior, or which group a grade is in
   (e.g. "I'm grade 11, am I junior or senior?"), classify as GRADE_GROUP and put
   the grade number in "grade" (null if no grade is stated)
@@ -577,11 +599,16 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "SIGNIN_SUMMARY":
-        dorm_rows = fetch_dorm_signins(day_id)
+        grade = cls.get("grade")
+        dorm_rows = fetch_dorm_signins(day_id, grade)
         meals = fetch_day_meals(day_id)
         meals_requiring = [r for r in meals if int(r.get("requires_signin") or 0) == 1]
+        if grade is not None:
+            group = fetch_grade_group(grade)
+            meals_requiring = [r for r in meals_requiring if r["group_name"] == group]
         return {
             "type": "SIGNIN_SUMMARY",
+            "grade": grade,
             "day_id": day_id,
             "day_name": day_name,
             "dorm_signins": dorm_rows,
@@ -623,6 +650,9 @@ SPECIAL RULES:
     search term alone does NOT establish the answer. If there is no direct
     support for the requested person, role, service, or detail, say you do not
     have verified information. Do not fill gaps using general knowledge.
+  - Answer only the specific question. For "who is a houseparent", give the
+    person's name and role with a source; omit house amenities, login/network
+    instructions, partner houses and unrelated staff unless asked for them.
   - Include a Markdown source link to the exact source_url of each record you
     use, grouped when the URL is the same. Never invent links or staff roles.
   - These are public facts checked on checked_on, not live availability or
@@ -669,8 +699,11 @@ SPECIAL RULES:
   - EVENT rows are special events: show their exact event_name and time under
     Events. all_day=1 means all day; do not invent a clock time for it.
   - Do not invent missing blocks or assume an empty slot is a free period.
-  - This is a personal calendar feed: do not describe an event as mandatory or
-    school-wide unless the supplied data explicitly establishes that.
+  - BLOCK rows describe the common school rotation, including periods omitted
+    from an individual student's feed. They do NOT establish that the student
+    has a class or a free period; personal enrolment belongs in MySchool.
+  - Special EVENT rows come from a personal calendar feed: do not describe an
+    event as mandatory or school-wide unless the data explicitly establishes it.
   - For a full-day schedule include the common afternoon pattern from
     "afternoon". If asked only about academic block order or a particular event,
     keep the answer focused. Numbered art blocks are separate from A–F blocks.
@@ -702,6 +735,10 @@ SPECIAL RULES:
   - Mention Dining Hall.
 - For SIGNIN_SUMMARY:
   - Show dorm sign-in times.
+  - Respect the grade_ids and group_name on every row. Grade 11 and Grade 12
+    can have different times; never merge them into one Senior sign-in time.
+    If grade is given, keep the answer focused on that grade. If no grade is
+    given, show all applicable groups/grades, including any separate exception.
   - If a dorm sign-in has no start_time but has a "note", state the note instead of a time (do not invent a clock time).
   - Show meal sign-ins that require sign-in.
 - For GRADE_GROUP:

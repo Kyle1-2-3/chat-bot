@@ -10,12 +10,32 @@ The server's private `.env` must contain the current `MSM_ICAL_URL`. Remove
 Never commit or print the tokenized feed URL. GitHub Actions installs the tracked
 systemd units on deployment; the feed is also refreshed during deployment.
 
-Academic A–F block suffixes become block rows. Assembly, Tutorial and Advisory
-remain named timeline items. Other events retain their title and time, including
-all-day events. Regular attendance-block activities, seasonal sports and the old
-numbered Rock Band classes are excluded. Personal events are not necessarily
-school-wide. Unscheduled/free blocks are not present in a personal feed and are
-never inferred. Fixed breaks are added only on dates with academic blocks.
+Academic A–F block suffixes anchor the actual date's rotation. A personal feed
+omits free periods, so it cannot by itself represent the school's full timetable.
+`complete_common_timetable` matches at least two distinct academic periods,
+including their exact start/end times, to the school's
+[official rotation and period table](https://www.brentwood.ca/why-brentwood/unique-timetable/)
+(verified 2026-09-23). A unique match completes any missing block, not just F.
+Weekdays use ABC, DEF, CAB, FDE, BCA or EFD; Saturday uses ABC or DEF. Wednesday
+and Saturday have their own period times. No rotation is advanced by calendar
+arithmetic across weekends, holidays or special days.
+
+For example, September 24's D at 10:25 and E at 11:55 establish the FDE day;
+the common F period is restored at 08:15–09:35 even when the feed owner is free.
+Confirmed normal mornings also receive missing Advisory (Monday), Tutorial
+(Tuesday/Friday), or Assembly (Thursday), 09:55–10:20. An explicitly supplied
+named period retains its own time. Fixed breaks/inspection are added once.
+
+Empty, event-only, Sunday, sparse, conflicting and nonstandard-period dates are
+not completed. A full class cancellation that is indistinguishable from a
+personal free period still requires a school-wide exception source; this is a
+regular common timetable, not proof of a student's enrolment or attendance.
+Check this published template if the school changes its rotation or bell times.
+
+Other events retain their title and time, including all-day events. Regular
+attendance-block activities, seasonal sports and the old numbered Rock Band
+classes are excluded. Personal events remain separate from school block rows
+and are not necessarily school-wide or a cancellation of the common block.
 
 A successful fetch replaces all upcoming rows so cancelled/removed events do
 not linger. A fetch failure, non-calendar response or parse failure preserves the

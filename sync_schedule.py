@@ -1,14 +1,15 @@
-"""Sync the academic block schedule from the school's MySchool iCal feed.
+"""Sync dated school blocks using MySchool and the official common timetable.
 
 The MySchool calendar exposes a tokenized, login-free iCal feed (the "Get iCal"
-link on calendar.php): a personal schedule URL that needs no auth, perfect for
-a daily cron. Block order is school-wide, so any one account's feed gives it.
+link on calendar.php): a personal schedule URL that needs no interactive login.
+It omits a student's free blocks, so it is NOT a complete school timetable.
 
 Blocks rotate week to week, so the schedule is stored keyed by actual DATE
 (not weekday). Each academic course's title ends in its block letter
 ("... 11-GL-D" -> block D); named items (Assembly, Tutorial, Advisor) pass
 through; special events retain their names. Regular co-curricular classes and
-seasonal sports are excluded. No block is inferred for an empty personal slot.
+seasonal sports are excluded. Complete a missing block only when at least two
+dated academic periods uniquely match the school's published rotation and times.
 
 Set MSM_ICAL_URL in .env. Run from the repo root: python sync_schedule.py
 """
@@ -34,6 +35,61 @@ BLOCK_SUFFIX = re.compile(r"-([A-F])$")
 COCURRICULAR = re.compile(
     r"Attendance Blk| - (?:Fall|Winter|Spring|Summer)$|Rock Band \(\d+\)$", re.I
 )
+
+# Official common timetable, verified 2026-09-23:
+# https://www.brentwood.ca/why-brentwood/unique-timetable/
+# A cycle day is identified from the actual dated periods, NEVER weekday arithmetic.
+COMMON_ROTATIONS = ("ABC", "DEF", "CAB", "FDE", "BCA", "EFD")
+SATURDAY_ROTATIONS = ("ABC", "DEF")
+REGULAR_PERIODS = (("08:15", "09:35"), ("10:25", "11:45"), ("11:55", "13:15"))
+WEDNESDAY_PERIODS = (("09:30", "10:35"), ("10:55", "12:00"), ("12:10", "13:15"))
+SATURDAY_PERIODS = (("10:15", "11:00"), ("11:10", "11:55"), ("12:05", "12:50"))
+COMMON_NAMED_ITEMS = {0: "ADVISORY", 1: "TUTORIAL", 3: "ASSEMBLY", 4: "TUTORIAL"}
+
+
+def complete_common_timetable(by_date: dict[str, list[dict]]) -> int:
+    """Fill personal free periods from a uniquely evidenced school rotation.
+
+    Two distinct normal periods must agree in letter AND start/end times.
+    Event-only days, Sundays, shortened/exception timetables, contradictory
+    blocks and sparse days stay as supplied. No date is generated or advanced
+    across a holiday. Events remain separate and never mean a student is free.
+    """
+    completed = 0
+    for date_key, rows in by_date.items():
+        weekday = date.fromisoformat(date_key).weekday()
+        if weekday == 6:
+            continue
+        periods = WEDNESDAY_PERIODS if weekday == 2 else SATURDAY_PERIODS if weekday == 5 else REGULAR_PERIODS
+        rotations = SATURDAY_ROTATIONS if weekday == 5 else COMMON_ROTATIONS
+        blocks = [r for r in rows if r["item_type"] == "BLOCK"]
+        if len(blocks) not in (2, 3):
+            continue
+        observed = {}
+        for block in blocks:
+            slot = (block["start_time"], block["end_time"])
+            if slot not in periods or slot in observed:
+                break
+            observed[slot] = block["block_code"]
+        else:
+            matches = [rotation for rotation in rotations
+                       if all(rotation[periods.index(slot)] == code for slot, code in observed.items())]
+            if len(matches) != 1:
+                continue
+            for index, (start, end) in enumerate(periods):
+                if (start, end) not in observed:
+                    rows.append({"item_type": "BLOCK", "block_code": matches[0][index],
+                                 "start_time": start, "end_time": end})
+                    completed += 1
+            # The personal feed may omit these school-wide morning periods too.
+            named = COMMON_NAMED_ITEMS.get(weekday)
+            if named and not any(r["item_type"] == named for r in rows):
+                rows.append({"item_type": named, "block_code": None,
+                             "start_time": "09:55", "end_time": "10:20"})
+            rows.sort(key=lambda r: r["start_time"])
+            for index, row in enumerate(rows, 1):
+                row["item_order"] = index
+    return completed
 
 
 def today() -> date:
@@ -156,6 +212,8 @@ def add_fixed_timeline_items(by_date: dict[str, list[dict]]) -> None:
         if not items:
             continue
         for item_type, start, end in items:
+            if any(r["item_type"] == item_type for r in rows):
+                continue
             rows.append({
                 "item_type": item_type,
                 "block_code": None,
@@ -217,12 +275,14 @@ def main():
     if "BEGIN:VCALENDAR" not in text or "END:VCALENDAR" not in text:
         raise ValueError("MySchool did not return an iCalendar feed; existing schedule preserved")
     by_date = parse_ical(text)
+    completed = complete_common_timetable(by_date)
     add_fixed_timeline_items(by_date)
     conn = sqlite3.connect(DB_PATH)
     stats = apply_schedule(conn, by_date, from_date=today())
     purged = purge_past(conn, today())
     conn.close()
-    print(f"Schedule sync done: {stats['rows']} rows across {stats['dates']} dates, {purged} past rows purged")
+    print(f"Schedule sync done: {stats['rows']} rows across {stats['dates']} dates, "
+          f"{completed} common blocks completed, {purged} past rows purged")
 
 
 if __name__ == "__main__":
