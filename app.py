@@ -112,6 +112,43 @@ def resolve_day_id(day_ref: str | None, user_msg: str = "") -> int:
     """Weekday id (1=Mon..7=Sun) for meals/sign-in — derived from the resolved date."""
     return resolve_date(day_ref or "", user_msg).isoweekday()
 
+# Common afternoon rules are maintained separately from any student's iCal.
+MYSCHOOL_URL = "https://brentwood.msm.io/saml/login"
+PERSONAL_ACTIVITY_REPLY = (
+    "Your arts and sports selections and exact schedule are individual. "
+    f"Please check [MySchool]({MYSCHOOL_URL}) → My Schedule."
+)
+ART_DAYS = (1, 3, 5)
+SPORT_DAYS = (2, 4, 6)
+
+
+def afternoon_rules(day_id: int | None = None) -> dict:
+    """Return shared weekly rules, never a student's assigned activities."""
+    art = {
+        "kind": "ART", "label": "Art Day",
+        "days": ["Monday", "Wednesday", "Friday"],
+        "start_time": "14:00", "end_time": "18:00",
+        "blocks": [
+            {"block": n, "start_time": f"{13+n}:00", "end_time": f"{14+n}:00"}
+            for n in range(1, 5)
+        ],
+        "arts_per_student_min": 2, "arts_per_student_max": 4,
+    }
+    sport = {
+        "kind": "SPORT", "label": "Sport Day",
+        "days": ["Tuesday", "Thursday", "Saturday"],
+        "window_start": "14:00", "window_end": "18:00",
+        "times_vary_by_sport": True,
+    }
+    patterns = [art, sport] if day_id is None else (
+        [art] if day_id in ART_DAYS else [sport] if day_id in SPORT_DAYS else []
+    )
+    return {
+        "patterns": patterns, "regular_weekly_pattern": True,
+        "personal_schedule_url": MYSCHOOL_URL,
+        "personal_schedule_instruction": PERSONAL_ACTIVITY_REPLY,
+    }
+
 # ---------------------------
 # DB Fetchers
 # ---------------------------
@@ -200,7 +237,7 @@ Schema:
 {
   "requests": [
     {
-      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "LOCATION" | "UNKNOWN",
+      "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "AFTERNOON" | "PERSONAL_ACTIVITY" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "LOCATION" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
       "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
       "grade": <integer 8-12 or null>,
@@ -214,6 +251,21 @@ Rules for each request:
 - "today's meals", "what are meals today" => MEALS_DAY
 - "what's for lunch friday" => MEAL
 - "schedule for monday", "what blocks tomorrow" => SCHEDULE
+- General afternoon rules, art/sport days, the common ART blocks 1–4 or the
+  general number of arts per student => AFTERNOON. Examples: "afternoon schedule
+  Monday", "is tomorrow art or sport day", "when is art block 2", "how many
+  arts do students have", "월요일 오후 일정", "아트 블록 4 몇 시야".
+  Use day_ref=ANY for the general weekly pattern when no day is specified.
+  Numbered art blocks 1–4 are NOT academic letter blocks A–F.
+- Personal arts/sports choices, assigned blocks, or the time of a particular
+  student's art or a named sport/activity => PERSONAL_ACTIVITY. Examples:
+  "what art do I have", "when is my art", "which art block am I in", "my sport
+  time", "when is rugby", "what time is robotics", "내 아트 뭐야", "내 스포츠
+  몇 시야". Never infer a personal assignment from the shared calendar or memory.
+  "What time is art block 2" is a general fixed-slot question => AFTERNOON;
+  "do I have art block 2" is about an assignment => PERSONAL_ACTIVITY.
+  A follow-up such as "what about mine" after a general art/sport question
+  becomes PERSONAL_ACTIVITY. Treat "sprot" as "sport".
 - "special events tomorrow", "any events today", "내일 특별 행사" => SCHEDULE
   with the requested day_ref; special events are included in the date's timeline.
 - A block and the cookie break are daily timeline items. A question about WHEN
@@ -259,7 +311,7 @@ UNKNOWN_REQUEST = {
 }
 
 VALID_INTENTS = {
-    "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE",
+    "GREETING", "MEAL", "MEALS_DAY", "SCHEDULE", "AFTERNOON", "PERSONAL_ACTIVITY",
     "MEAL_SIGNIN", "SIGNIN_SUMMARY", "GRADE_GROUP", "BEDTIME",
     "EVENT_SEARCH", "LOCATION", "UNKNOWN"
 }
@@ -391,6 +443,19 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
     if intent == "LOCATION":
         return {"type": "LOCATION"}
 
+    if intent == "PERSONAL_ACTIVITY":
+        return {"type": "PERSONAL_ACTIVITY", "reply": PERSONAL_ACTIVITY_REPLY}
+
+    if intent == "AFTERNOON":
+        if day_ref == "ANY":
+            return {"type": "AFTERNOON", **afternoon_rules()}
+        sched_date = resolve_date(day_ref, user_msg)
+        return {
+            "type": "AFTERNOON", "date": sched_date.isoformat(),
+            "day_name": calendar.day_name[sched_date.weekday()],
+            **afternoon_rules(sched_date.isoweekday()),
+        }
+
     day_id = resolve_day_id(day_ref, user_msg)
     day_name = calendar.day_name[day_id - 1]
 
@@ -420,7 +485,8 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
             "type": "SCHEDULE",
             "date": sched_date.isoformat(),
             "day_name": calendar.day_name[sched_date.weekday()],
-            "rows": rows
+            "rows": rows,
+            "afternoon": afternoon_rules(sched_date.isoweekday()),
         }
 
     if intent == "MEAL_SIGNIN":
@@ -535,6 +601,24 @@ SPECIAL RULES:
   - Do not invent missing blocks or assume an empty slot is a free period.
   - This is a personal calendar feed: do not describe an event as mandatory or
     school-wide unless the supplied data explicitly establishes that.
+  - For a full-day schedule include the common afternoon pattern from
+    "afternoon". If asked only about academic block order or a particular event,
+    keep the answer focused. Numbered art blocks are separate from A–F blocks.
+- For AFTERNOON (and the "afternoon" field of SCHEDULE):
+  - These are the school's regular weekly rules, not a personal timetable or
+    confirmation that normal classes run on a holiday or special-event day.
+  - Art Day is Monday/Wednesday/Friday, 2–6 PM, with four one-hour art blocks:
+    use the supplied block times. Students have 2–4 arts, not necessarily all four.
+  - Sport Day is Tuesday/Thursday/Saturday. 2–6 PM is the overall window;
+    each sport has its own time. Never say every student's sport lasts four hours.
+  - If patterns is empty, no standard afternoon pattern is supplied for that
+    day; do not conclude the student is free or there are no activities.
+  - Answer the relevant common rule, and direct personal choices or exact
+    individual times to the supplied MySchool link → My Schedule.
+- For PERSONAL_ACTIVITY:
+  - Use the supplied "reply" to redirect to MySchool → My Schedule. Do not name
+    or guess the student's arts, sport, assigned blocks, or individual time,
+    even if another result or the question mentions an activity.
 - For EVENT_SEARCH:
   - This is a reverse lookup: the user named an event and wants when it next happens.
   - "rows" holds the nearest upcoming occurrence (date, day_name, start_time, end_time).
@@ -692,6 +776,8 @@ def chat():
 
     if all(r["type"] == "LOCATION" for r in results):
         reply = LOCATION_REPLY
+    elif all(r["type"] == "PERSONAL_ACTIVITY" for r in results):
+        reply = PERSONAL_ACTIVITY_REPLY
     else:
         reply = generate_answer(user_msg, actionable, results)
 
