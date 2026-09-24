@@ -24,6 +24,10 @@ or manually maintained afternoon rules. The midnight calendar sync remains
 separate. Website facts are **not automatically refreshed**: staff and facility
 changes must be reviewed and committed before deployment.
 
+User curation: omit generic Wi-Fi/network-login instructions and Wi-Fi amenity
+details. Keep useful IT support and repair information. A specific staff-role
+question should return that role and its source, without unrelated house facts.
+
 ## Updating the snapshot
 
 1. Install `beautifulsoup4` in a maintenance environment (not required by the app).

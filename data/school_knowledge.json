@@ -375,7 +375,7 @@
         "houseparents"
       ],
       "facts": [
-        "Brentwood College has eight boarding houses: Hope, Allard, Mackenzie, Alexandra, Privett, Rogers, Ellis, and Whittall, all centrally located with WiFi, shared kitchens, TVs, and common areas.",
+        "Brentwood College has eight boarding houses: Hope, Allard, Mackenzie, Alexandra, Privett, Rogers, Ellis, and Whittall, all centrally located with shared kitchens, TVs, and common areas.",
         "Houseparents and Assistant Houseparents live in adjoining suites within each house.",
         "Students are assigned a roommate, usually in the same grade, and share a dorm room, responsible for tidying their rooms for daily/weekly inspections.",
         "Over 80% of students board full-time. Grade 12 students can be Prefects to mentor younger students."
@@ -480,15 +480,13 @@
         "houseparent",
         "assistant houseparent",
         "sister house",
-        "Interhouse competitions",
-        "Wi-Fi"
+        "Interhouse competitions"
       ],
       "facts": [
         "Rogers House is a boarding house at Brentwood College School.",
         "The Houseparent for Rogers House is Ken Snow.",
         "The Assistant Houseparent for Rogers House is Shane Thompson.",
-        "Rogers House's sister house is Allard House, with whom they partner for Interhouse competitions.",
-        "Students can join the 'Brentwood' Wi-Fi network using their Brentwood login."
+        "Rogers House's sister house is Allard House, with whom they partner for Interhouse competitions."
       ],
       "source_url": "https://www.brentwood.ca/events/schoolstart/rogers/",
       "id": "ea3167c40478"
@@ -501,15 +499,13 @@
         "houseparent",
         "assistant houseparent",
         "sister house",
-        "Interhouse competitions",
-        "Wi-Fi"
+        "Interhouse competitions"
       ],
       "facts": [
         "Whittall House is a boarding house at Brentwood College School.",
         "The Houseparent for Whittall House is Wesley Barrett.",
         "The Assistant Houseparent for Whittall House is Tammie Ramsay.",
-        "Whittall House's sister house is Alexandra House, with whom they partner for Interhouse competitions.",
-        "Students can join the 'Brentwood' Wi-Fi network using their Brentwood login."
+        "Whittall House's sister house is Alexandra House, with whom they partner for Interhouse competitions."
       ],
       "source_url": "https://www.brentwood.ca/events/schoolstart/whittall/",
       "id": "7392e42111d6"
@@ -4048,11 +4044,10 @@
         "learning spaces",
         "digital projection",
         "audio systems",
-        "wifi",
         "movable furniture"
       ],
       "facts": [
-        "Classrooms in five buildings feature digital projection, audio, Wi-Fi, and movable furniture for flexible learning environments."
+        "Classrooms in five buildings feature digital projection, audio, and movable furniture for flexible learning environments."
       ],
       "source_url": "https://www.brentwood.ca/academics/facilities/",
       "id": "e570fe4384a1"
@@ -4209,23 +4204,6 @@
       ],
       "source_url": "https://www.brentwood.ca/why-brentwood/campus/",
       "id": "af87f639d7a1"
-    },
-    {
-      "title": "Campus Wireless Network",
-      "category": "facility",
-      "keywords": [
-        "Wi-Fi",
-        "wireless network",
-        "Brentwood Student Wi-Fi",
-        "authentication",
-        "certificate"
-      ],
-      "facts": [
-        "Brentwood offers a campus-wide wireless network for staff and students.",
-        "Connect to 'Brentwood Student' Wi-Fi, authenticate with your Brentwood Account, and trust the dc01.brentwood.bc.ca certificate."
-      ],
-      "source_url": "https://www.brentwood.ca/innovations/innovations-orientation/",
-      "id": "f042eb90fb0b"
     },
     {
       "id": "0576dd19342f",
@@ -4703,7 +4681,7 @@
       "facts": [
         "Campers arrange travel to Vancouver Island.",
         "A complimentary shuttle is provided from Victoria International Airport (YYJ) and Swartz Bay ferry terminal.",
-        "Overnight campers stay in a Brentwood boarding house with twin XL beds, desks, chairs, towels, bedding, Wi-Fi, shared kitchens, flatscreens, common areas, and coin-operated laundry."
+        "Overnight campers stay in a Brentwood boarding house with twin XL beds, desks, chairs, towels, bedding, shared kitchens, flatscreens, common areas, and coin-operated laundry."
       ],
       "source_url": "https://www.brentwood.ca/summer-camps/",
       "id": "d522f54a6e8c"
@@ -7808,11 +7786,10 @@
         "timetable",
         "report cards",
         "travel",
-        "dining menu",
-        "WiFi"
+        "dining menu"
       ],
       "facts": [
-        "Students use their Brentwood Account Portal for password management. Gmail handles student emails. Google Calendar is available for events. MySchool provides timetables, course enrollment, report cards, and travel info. Crooks Hall Menu shows daily meals. WiFi instructions are available for network connection."
+        "Students use their Brentwood Account Portal for password management. Gmail handles student emails. Google Calendar is available for events. MySchool provides timetables, course enrollment, report cards, and travel info. Crooks Hall Menu shows daily meals."
       ],
       "source_url": "https://www.brentwood.ca/students/",
       "id": "cb287dda555e"
@@ -9804,7 +9781,6 @@
         "technology support",
         "helpdesk",
         "account setup",
-        "Wi-Fi",
         "Google Chrome",
         "MySchool",
         "printing"

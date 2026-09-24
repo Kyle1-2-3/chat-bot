@@ -14,6 +14,7 @@ def init_db():
     # ---------------------------
     cur.executescript("""
         DROP TABLE IF EXISTS Bedtimes;
+        DROP TABLE IF EXISTS DormSigninOverrides;
 
         DROP TABLE IF EXISTS DormScheduleRules;
         DROP TABLE IF EXISTS DormSchedules;
@@ -113,6 +114,17 @@ def init_db():
             note TEXT,                  -- human-readable detail for untimed rules
             FOREIGN KEY (dorm_schedule_id) REFERENCES DormSchedules(dorm_schedule_id),
             FOREIGN KEY (rule_type_id) REFERENCES DormRuleTypes(rule_type_id)
+        );
+
+        -- Grade-specific exceptions to the shared Junior/Senior sign-in rules.
+        CREATE TABLE DormSigninOverrides (
+            grade_id INTEGER NOT NULL,
+            day_id INTEGER NOT NULL,
+            rule_order INTEGER NOT NULL,
+            start_time TEXT NOT NULL,
+            PRIMARY KEY (grade_id, day_id, rule_order),
+            FOREIGN KEY (grade_id) REFERENCES Grades(grade_id),
+            FOREIGN KEY (day_id) REFERENCES Days(day_id)
         );
 
         -- Bedtime is per GRADE (not group), per day. bedtime NULL = no set bedtime.
@@ -248,7 +260,7 @@ def init_db():
     # Dorm rules
     # Dorm SIGN_IN only = dorm sign-in times
     # - Weekdays: 19:15 (one)
-    # - Saturday: 19:15 + 22:00/22:30 (two sign-ins)
+    # - Saturday: 19:15 + Junior 22:00 / Grade 11 22:30 / Grade 12 23:00
     # - Sunday: morning dorm sign-in + 19:15 evening sign-in (and no meal sign-in questions here)
     #   You can adjust morning time to your real data.
     # ---------------------------
@@ -303,6 +315,10 @@ def init_db():
                     INSERT INTO DormScheduleRules(dorm_schedule_id, rule_type_id, start_time, rule_order)
                     VALUES (?, ?, ?, 3)
                 """, (ds_id, SIGN_IN_ID, night))
+
+    # User-maintained exception: Grade 12 Saturday night sign-in is 11 PM.
+    # Keep Grade 11 at 10:30 PM and the common 7:15 PM sign-in unchanged.
+    cur.execute("INSERT INTO DormSigninOverrides VALUES (12, 6, 2, '23:00')")
 
     conn.commit()
     conn.close()
