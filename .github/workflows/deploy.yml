@@ -51,6 +51,10 @@ jobs:
             venv/bin/python set_up_db.py
             venv/bin/python sync_menus.py
             venv/bin/python sync_schedule.py
+            sudo install -m 644 docs/server/sync-schedule.service docs/server/sync-schedule.timer /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable sync-schedule.timer
+            sudo systemctl restart sync-schedule.timer
             sudo systemctl restart chatbot
             sleep 1
             systemctl is-active chatbot

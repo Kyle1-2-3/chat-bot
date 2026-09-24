@@ -4,5 +4,5 @@ python-dotenv
 google-genai
 gunicorn
 certifi
-tzdata
+tzdata>=2026.2
 pytest

@@ -1,0 +1,12 @@
+[Unit]
+Description=Sync upcoming MySchool blocks and special events
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ec2-user
+WorkingDirectory=/home/ec2-user/chat-bot
+Environment=TZ=America/Vancouver
+ExecStart=/home/ec2-user/chat-bot/venv/bin/python sync_schedule.py
+TimeoutStartSec=180

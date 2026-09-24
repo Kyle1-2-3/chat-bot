@@ -82,6 +82,8 @@ def init_db():
             sched_date TEXT NOT NULL,
             item_type TEXT NOT NULL,
             block_code TEXT,
+            event_name TEXT,
+            all_day INTEGER NOT NULL DEFAULT 0,
             start_time TEXT NOT NULL,
             end_time TEXT NOT NULL,
             item_order INTEGER NOT NULL
