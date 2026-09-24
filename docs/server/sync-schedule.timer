@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh school blocks and events at midnight in Vancouver
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 America/Vancouver
+AccuracySec=1s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

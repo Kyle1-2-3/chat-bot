@@ -58,7 +58,8 @@ def test_fetch_timeline_by_date(monkeypatch, tmp_path):
         CREATE TABLE ScheduleTimeline (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sched_date TEXT, item_type TEXT, block_code TEXT,
-            start_time TEXT, end_time TEXT, item_order INTEGER
+            start_time TEXT, end_time TEXT, item_order INTEGER,
+            event_name TEXT, all_day INTEGER NOT NULL DEFAULT 0
         );
         INSERT INTO ScheduleTimeline(sched_date,item_type,block_code,start_time,end_time,item_order) VALUES
             ('2026-04-20','BLOCK','D','08:15','09:35',1),

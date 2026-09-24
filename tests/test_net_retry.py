@@ -83,7 +83,7 @@ def test_sync_schedule_main_survives_one_fetch_failure(tmp_path, monkeypatch):
         calls["n"] += 1
         if calls["n"] == 1:
             raise OSError("connection reset")
-        return ""
+        return "BEGIN:VCALENDAR\nEND:VCALENDAR"
 
     monkeypatch.setattr(ss, "fetch_ical", flaky_fetch)
     ss.main()  # must not raise

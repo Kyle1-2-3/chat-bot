@@ -9,6 +9,7 @@ import httpx
 import os
 import sqlite3
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 import calendar
 import json
 import logging
@@ -26,6 +27,7 @@ SERVER_TAG = ""
 DB_PATH = os.path.join("db", "school.db")
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_TIMEOUT_MS = 15000  # cap each LLM call so a hung request can't tie up a worker
+SCHOOL_TZ = ZoneInfo("America/Vancouver")
 
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
 logger = logging.getLogger("chatbot")
@@ -78,7 +80,7 @@ def today() -> date:
     override = (os.getenv("FAKE_TODAY") or "").strip()
     if override:
         return datetime.strptime(override, "%Y-%m-%d").date()
-    return datetime.now().date()
+    return datetime.now(SCHOOL_TZ).date()
 
 def resolve_date(day_ref: str, user_msg: str = "") -> date:
     """Resolve a day_ref to an actual calendar date (blocks rotate, so dates matter)."""
@@ -148,7 +150,7 @@ def fetch_dorm_signins(day_id: int) -> list[dict]:
 
 def fetch_timeline_by_date(sched_date: str) -> list[dict]:
     return query("""
-        SELECT item_type, block_code, start_time, end_time, item_order
+        SELECT item_type, block_code, start_time, end_time, item_order, event_name, all_day
         FROM ScheduleTimeline
         WHERE sched_date = ?
         ORDER BY item_order
@@ -212,6 +214,8 @@ Rules for each request:
 - "today's meals", "what are meals today" => MEALS_DAY
 - "what's for lunch friday" => MEAL
 - "schedule for monday", "what blocks tomorrow" => SCHEDULE
+- "special events tomorrow", "any events today", "내일 특별 행사" => SCHEDULE
+  with the requested day_ref; special events are included in the date's timeline.
 - A block and the cookie break are daily timeline items. A question about WHEN
   one happens on a given day — "when is the D block today", "when is the cookie
   break today", "cookie break time tomorrow" => SCHEDULE for that day (day_ref
@@ -525,7 +529,12 @@ SPECIAL RULES:
   - Within a meal, if groups share the same menu, state it once and list the times
     (do not repeat the menu per group).
 - For SCHEDULE:
-  - Show timeline in order.
+  - First give the available block order from BLOCK rows, then the timeline.
+  - EVENT rows are special events: show their exact event_name and time under
+    Events. all_day=1 means all day; do not invent a clock time for it.
+  - Do not invent missing blocks or assume an empty slot is a free period.
+  - This is a personal calendar feed: do not describe an event as mandatory or
+    school-wide unless the supplied data explicitly establishes that.
 - For EVENT_SEARCH:
   - This is a reverse lookup: the user named an event and wants when it next happens.
   - "rows" holds the nearest upcoming occurrence (date, day_name, start_time, end_time).
@@ -601,7 +610,7 @@ LOCATION_REPLY = (
 def generate_answer(user_msg: str, classifications: list[dict], results: list[dict]) -> str:
     # Day reflects today() (so FAKE_TODAY works); time-of-day stays real-clock.
     server_day_name = calendar.day_name[today().isoweekday() - 1]
-    server_time = datetime.now().strftime("%H:%M")
+    server_time = datetime.now(SCHOOL_TZ).strftime("%H:%M")
 
     payload = {
         "server_time": f"{server_day_name} {server_time}",

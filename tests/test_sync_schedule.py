@@ -65,16 +65,18 @@ def test_parse_includes_advisory_once_and_in_sequence():
     assert len(advisory) == 1
     assert advisory[0]["start_time"] == "09:55"
     # item_order is sequential by time across the whole day
-    assert [r["item_type"] for r in rows] == ["BLOCK", "ADVISORY", "BLOCK", "BLOCK"]
-    assert [r["item_order"] for r in rows] == [1, 2, 3, 4]
+    assert [r["item_type"] for r in rows] == ["EVENT", "BLOCK", "ADVISORY", "BLOCK", "BLOCK"]
+    assert [r["item_order"] for r in rows] == [1, 2, 3, 4, 5]
 
 
-def test_parse_excludes_cocurricular_and_events():
+def test_parse_keeps_special_events_and_excludes_cocurricular():
     rows = ss.parse_ical(ICS_MONDAY)["2026-04-20"]
     titles = [r["item_type"] for r in rows]
-    assert "EVENT" not in titles
-    assert all("Rock Band" not in (r.get("block_code") or "") for r in rows)
-    assert len(rows) == 4  # 3 blocks + 1 advisory; festival + rock band dropped
+    assert "EVENT" in titles
+    assert [r["event_name"] for r in rows if r["item_type"] == "EVENT"] == [
+        "Greater Victoria Performing Arts Festival"
+    ]
+    assert len(rows) == 5  # 3 blocks + advisory + festival; regular rock band dropped
 
 
 def test_parse_maps_named_timeline_items():
@@ -139,17 +141,18 @@ def rows_for(conn, date):
 def test_apply_inserts_rows(conn):
     ss.apply_schedule(conn, ss.parse_ical(ICS_MONDAY))
     assert rows_for(conn, "2026-04-20") == [
-        ("BLOCK", "D", "08:15", 1),
-        ("ADVISORY", None, "09:55", 2),
-        ("BLOCK", "E", "10:25", 3),
-        ("BLOCK", "F", "11:55", 4),
+        ("EVENT", None, "07:30", 1),
+        ("BLOCK", "D", "08:15", 2),
+        ("ADVISORY", None, "09:55", 3),
+        ("BLOCK", "E", "10:25", 4),
+        ("BLOCK", "F", "11:55", 5),
     ]
 
 
 def test_apply_replaces_existing_date(conn):
     ss.apply_schedule(conn, ss.parse_ical(ICS_MONDAY))
     ss.apply_schedule(conn, ss.parse_ical(ICS_MONDAY))  # re-sync same day
-    assert len(rows_for(conn, "2026-04-20")) == 4  # not doubled
+    assert len(rows_for(conn, "2026-04-20")) == 5  # not doubled
 
 
 # ---------------------------
@@ -244,8 +247,8 @@ def test_cookie_break_wired_into_parse_pipeline():
     by_date = ss.parse_ical(ICS_MONDAY)  # 2026-04-20 Monday
     ss.add_fixed_timeline_items(by_date)
     rows = by_date["2026-04-20"]
-    assert [r["item_type"] for r in rows] == ["BLOCK", "COOKIE_BREAK", "ADVISORY", "BLOCK", "BLOCK"]
-    assert [r["item_order"] for r in rows] == [1, 2, 3, 4, 5]
+    assert [r["item_type"] for r in rows] == ["EVENT", "BLOCK", "COOKIE_BREAK", "ADVISORY", "BLOCK", "BLOCK"]
+    assert [r["item_order"] for r in rows] == [1, 2, 3, 4, 5, 6]
 
 
 # ---------------------------
