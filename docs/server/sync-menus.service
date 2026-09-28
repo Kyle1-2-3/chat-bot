@@ -1,0 +1,12 @@
+[Unit]
+Description=Sync weekly menus from food.brentwood.ca into chatbot DB
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ec2-user
+WorkingDirectory=/home/ec2-user/chat-bot
+Environment=TZ=America/Vancouver
+ExecStart=/home/ec2-user/chat-bot/venv/bin/python sync_menus.py
+TimeoutStartSec=120

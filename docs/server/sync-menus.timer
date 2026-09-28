@@ -1,0 +1,11 @@
+[Unit]
+Description=Check menus every five minutes on Mondays and daily otherwise
+
+[Timer]
+OnCalendar=Mon *-*-* *:00/5:00 America/Vancouver
+OnCalendar=Tue..Sun *-*-* 04:00:00 America/Vancouver
+AccuracySec=1s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
