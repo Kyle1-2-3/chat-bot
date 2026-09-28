@@ -180,6 +180,8 @@ def init_db():
     # Rules you described:
     # - Meal sign-in happens at meal time
     # - Breakfast + Dinner: sign-in required
+    #   Grade 12 is exempt from ALL meal sign-ins; app.apply_meal_grade_rules
+    #   applies the grade exception to these shared Junior/Senior meal rows.
     # - Lunch: no sign-in
     # - Sunday: BRUNCH, AFTERNOON_SNACK, DINNER
     #   - Brunch/snack: no sign-in

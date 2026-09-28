@@ -171,14 +171,39 @@ _MEAL_SELECT = """
 # yields the per-group ordering fetch_meal needs.
 _MEAL_ORDER = " ORDER BY mt.meal_type_id, gg.group_id"
 
-def fetch_meal(day_id: int, meal_type: str) -> list[dict]:
-    return query(
+# School rule supplied by the project owner on 2026-09-27: Grade 12 has
+# house sign-ins only. Shared Senior meal times/menus still apply.
+MEAL_SIGNIN_EXEMPT_GRADES = {12}
+
+
+def apply_meal_grade_rules(rows: list[dict], grade: int | None = None) -> list[dict]:
+    """Split a shared meal row only where grades have different sign-in rules."""
+    grade_rows = query("""
+        SELECT g.grade_id, gg.group_name FROM Grades g
+        JOIN GradeGroups gg ON gg.group_id = g.group_id ORDER BY g.grade_id
+    """)
+    result = []
+    for row in rows:
+        group_grades = [g["grade_id"] for g in grade_rows if g["group_name"] == row["group_name"]]
+        relevant = [g for g in group_grades if grade is None or g == grade]
+        by_requirement = {}
+        for grade_id in relevant:
+            required = int(bool(row["requires_signin"]) and grade_id not in MEAL_SIGNIN_EXEMPT_GRADES)
+            by_requirement.setdefault(required, []).append(grade_id)
+        for required, grades in by_requirement.items():
+            label = row["group_name"] if grades == group_grades else "Grade " + ", ".join(map(str, grades))
+            result.append({**row, "group_name": label, "grade_ids": grades, "requires_signin": required})
+    return result
+
+
+def fetch_meal(day_id: int, meal_type: str, grade: int | None = None) -> list[dict]:
+    return apply_meal_grade_rules(query(
         _MEAL_SELECT + " AND UPPER(mt.type_name) = ?" + _MEAL_ORDER,
         (day_id, meal_type.upper()),
-    )
+    ), grade)
 
-def fetch_day_meals(day_id: int) -> list[dict]:
-    return query(_MEAL_SELECT + _MEAL_ORDER, (day_id,))
+def fetch_day_meals(day_id: int, grade: int | None = None) -> list[dict]:
+    return apply_meal_grade_rules(query(_MEAL_SELECT + _MEAL_ORDER, (day_id,)), grade)
 
 def fetch_dorm_signins(day_id: int, grade: int | None = None) -> list[dict]:
     rows = query("""
@@ -334,7 +359,12 @@ Rules for each request:
   from the day mentioned, default TODAY). The whole day's timeline is returned
   and the specific item is read from it. (This is NOT EVENT_SEARCH; EVENT_SEARCH
   is only for assembly/tutorial/advisory when no day is given.)
-- If user asks whether a specific meal has sign-in, classify as MEAL_SIGNIN
+- If user asks whether a specific meal or meals in general require sign-in,
+  classify as MEAL_SIGNIN. Leave meal_type null for meals in general.
+- For MEAL, MEALS_DAY, MEAL_SIGNIN and SIGNIN_SUMMARY, extract the stated grade
+  (including "gr12", "grade 12", "12학년") and carry it over from recent
+  conversation when referring to that student. Never infer grade from Senior.
+  "I'm gr12, do I sign in for dinner?" => MEAL_SIGNIN, grade=12, meal_type=DINNER.
 - If user asks general sign-in time, dorm sign-in, curfew, residence sign-in, or
   "sign in time for saturday", classify as SIGNIN_SUMMARY. Extract the stated
   grade into grade (including a grade established in recent conversation).
@@ -512,6 +542,7 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
     intent = cls.get("intent", "UNKNOWN")
     day_ref = cls.get("day_ref", "ANY")
     meal_type = cls.get("meal_type")
+    grade = cls.get("grade")
 
     if intent == "LOCATION":
         return {"type": "LOCATION"}
@@ -550,9 +581,10 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
     day_name = calendar.day_name[day_id - 1]
 
     if intent == "MEAL":
-        rows = attach_menu_links(fetch_meal(day_id, meal_type)) if meal_type else []
+        rows = attach_menu_links(fetch_meal(day_id, meal_type, grade)) if meal_type else []
         return {
             "type": "MEAL",
+            "grade": grade,
             "day_id": day_id,
             "day_name": day_name,
             "meal_type": meal_type,
@@ -560,9 +592,10 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "MEALS_DAY":
-        rows = attach_menu_links(fetch_day_meals(day_id))
+        rows = attach_menu_links(fetch_day_meals(day_id, grade))
         return {
             "type": "MEALS_DAY",
+            "grade": grade,
             "day_id": day_id,
             "day_name": day_name,
             "rows": rows
@@ -586,9 +619,11 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "MEAL_SIGNIN":
-        rows = fetch_meal(day_id, meal_type) if meal_type else []
+        rows = fetch_meal(day_id, meal_type, grade) if meal_type else fetch_day_meals(day_id, grade)
         return {
             "type": "MEAL_SIGNIN",
+            "grade": grade,
+            "meal_signin_exempt_grades": sorted(MEAL_SIGNIN_EXEMPT_GRADES),
             "day_id": day_id,
             "day_name": day_name,
             "meal_type": meal_type,
@@ -634,14 +669,12 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
     if intent == "SIGNIN_SUMMARY":
         grade = cls.get("grade")
         dorm_rows = fetch_dorm_signins(day_id, grade)
-        meals = fetch_day_meals(day_id)
+        meals = fetch_day_meals(day_id, grade)
         meals_requiring = [r for r in meals if int(r.get("requires_signin") or 0) == 1]
-        if grade is not None:
-            group = fetch_grade_group(grade)
-            meals_requiring = [r for r in meals_requiring if r["group_name"] == group]
         return {
             "type": "SIGNIN_SUMMARY",
             "grade": grade,
+            "meal_signin_exempt_grades": sorted(MEAL_SIGNIN_EXEMPT_GRADES),
             "day_id": day_id,
             "day_name": day_name,
             "dorm_signins": dorm_rows,
@@ -743,11 +776,15 @@ SPECIAL RULES:
   - Use the names from "menu_items" for the dishes; do not also print the raw
     "menu_content" text separately (it is the same dishes, just unsplit).
 - For MEAL:
+  - Respect each row's grade_ids and requires_signin. Do not apply Grade 11's
+    meal sign-in requirement to Grade 12. Focus on the requested grade if given.
   - State the menu once, then give the time(s) and which group each time applies to.
   - If the groups (e.g. Junior/Senior) share the SAME menu, say the menu only ONCE
     and just list each group's time — do NOT repeat the menu for each group.
   - Only if the menus actually differ, give each group its own menu and time.
 - For MEALS_DAY:
+  - Respect grade_ids and requires_signin as for MEAL. Equal serving times/menus
+    do not imply equal sign-in requirements.
   - Organize by meal type.
   - Within a meal, if groups share the same menu, state it once and list the times
     (do not repeat the menu per group).
@@ -787,9 +824,13 @@ SPECIAL RULES:
   - If "rows" is empty, say you don't have an upcoming date for that event. Do NOT
     invent a day or time.
 - For MEAL_SIGNIN:
-  - Say whether sign-in is required.
-  - Include time range.
-  - Mention Dining Hall.
+  - Respect grade_ids and requires_signin on every row. Grades in
+    meal_signin_exempt_grades have no meal sign-ins on any day; for Grade 12,
+    clearly say no meal sign-in is required and house sign-ins still apply.
+  - When no grade is given, distinguish Grade 11 from the exempt Grade 12,
+    rather than saying all Seniors must sign in.
+  - Include a Dining Hall sign-in time range only when sign-in is required.
+    Serving times are not sign-in requirements for exempt students.
 - For SIGNIN_SUMMARY:
   - Show dorm sign-in times.
   - Respect the grade_ids and group_name on every row. Grade 11 and Grade 12
@@ -798,6 +839,9 @@ SPECIAL RULES:
     given, show all applicable groups/grades, including any separate exception.
   - If a dorm sign-in has no start_time but has a "note", state the note instead of a time (do not invent a clock time).
   - Show meal sign-ins that require sign-in.
+  - Grades in meal_signin_exempt_grades have no meal sign-ins. For Grade 12,
+    show only the house sign-ins and briefly state that no meal sign-ins apply.
+    Do not invent a dining sign-in because a meal is served at that time.
 - For GRADE_GROUP:
   - State which group (Junior/Senior) the grade is in using group_name.
   - If group_name is missing/null, ask the user which grade they are in.
