@@ -29,10 +29,10 @@ def test_lunch_ends_at_14_00_both_groups(tmp_path, monkeypatch):
 
 def test_fetch_day_meals_ordered_by_type_then_group(tmp_path, monkeypatch):
     seed(tmp_path, monkeypatch)
-    rows = appmod.fetch_day_meals(1)  # Monday: BREAKFAST, LUNCH, DINNER x2 groups
+    rows = appmod.fetch_day_meals(1)  # Senior sign-in meals split by grade.
     seen = [(r["type_name"], r["group_name"]) for r in rows]
-    assert seen[:4] == [
-        ("BREAKFAST", "Junior"), ("BREAKFAST", "Senior"),
+    assert seen[:5] == [
+        ("BREAKFAST", "Junior"), ("BREAKFAST", "Grade 11"), ("BREAKFAST", "Grade 12"),
         ("LUNCH", "Junior"), ("LUNCH", "Senior"),
     ]
 

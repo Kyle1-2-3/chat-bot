@@ -38,10 +38,55 @@ def test_day_student_grade_is_not_added_to_dorm_groups(seeded):
     assert all(8 not in row["grade_ids"] for row in appmod.fetch_dorm_signins(6))
 
 
-def test_signin_result_keeps_only_requested_grade_and_meal_group(seeded, monkeypatch):
+def test_grade_12_signin_result_has_only_house_signins(seeded, monkeypatch):
     monkeypatch.setattr(appmod, "today", lambda: date(2026, 9, 23))
     result = appmod.build_result_from_classification(
         {"intent": "SIGNIN_SUMMARY", "day_ref": "SATURDAY", "grade": 12}, "grade 12 Saturday sign in")
     assert result["grade"] == 12
     assert [r["start_time"] for r in result["dorm_signins"]] == ["19:15", "23:00"]
-    assert all(r["group_name"] == "Senior" for r in result["meal_signins"])
+    assert result["meal_signins"] == []
+    assert result["meal_signin_exempt_grades"] == [12]
+
+
+@pytest.mark.parametrize("day", range(1, 8))
+def test_grade_12_never_has_meal_signins_and_keeps_serving_times(seeded, day):
+    grade12 = appmod.fetch_day_meals(day, 12)
+    grade11 = appmod.fetch_day_meals(day, 11)
+    assert grade12 and all(r["requires_signin"] == 0 for r in grade12)
+    assert all(r["grade_ids"] == [12] for r in grade12)
+    assert [(r["type_name"], r["start_time"], r["end_time"], r["menu_content"]) for r in grade12] == [
+        (r["type_name"], r["start_time"], r["end_time"], r["menu_content"]) for r in grade11]
+    assert {r["type_name"] for r in grade11 if r["requires_signin"]} == (
+        {"DINNER"} if day == 7 else {"BREAKFAST", "DINNER"})
+
+
+@pytest.mark.parametrize("grade", [9, 10, 11])
+def test_other_grades_keep_their_meal_requirements(seeded, grade):
+    rows = appmod.fetch_day_meals(1, grade)
+    assert {r["type_name"]: r["requires_signin"] for r in rows} == {
+        "BREAKFAST": 1, "LUNCH": 0, "DINNER": 1}
+
+
+@pytest.mark.parametrize("meal", ["BREAKFAST", "DINNER", None])
+def test_direct_meal_signin_answer_respects_grade_12_exemption(seeded, meal):
+    result = appmod.build_result_from_classification(
+        {"intent": "MEAL_SIGNIN", "grade": 12, "meal_type": meal, "day_ref": "MONDAY"}, "gr12 meal sign in")
+    assert result["grade"] == 12 and result["rows"]
+    assert all(r["requires_signin"] == 0 and r["grade_ids"] == [12] for r in result["rows"])
+
+
+def test_general_summary_does_not_apply_grade_11_meal_rules_to_grade_12(seeded):
+    result = appmod.build_result_from_classification(
+        {"intent": "SIGNIN_SUMMARY", "day_ref": "SATURDAY"}, "Saturday sign-ins")
+    assert result["meal_signins"]
+    assert all(12 not in r["grade_ids"] for r in result["meal_signins"])
+    assert any(r["grade_ids"] == [11] and r["type_name"] == "DINNER" for r in result["meal_signins"])
+    assert any(r["grade_ids"] == [12] and r["start_time"] == "23:00" for r in result["dorm_signins"])
+
+
+@pytest.mark.parametrize("intent", ["MEAL", "MEALS_DAY"])
+def test_menu_answers_also_use_the_correct_grade_rule(seeded, intent):
+    result = appmod.build_result_from_classification(
+        {"intent": intent, "grade": 12, "day_ref": "MONDAY", "meal_type": "DINNER"}, "gr12 meals")
+    assert result["grade"] == 12 and result["rows"]
+    assert all(r["requires_signin"] == 0 and r["grade_ids"] == [12] for r in result["rows"])
