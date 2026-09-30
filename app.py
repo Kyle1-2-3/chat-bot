@@ -253,6 +253,22 @@ def fetch_next_event(item_type: str, from_date: str) -> list[dict]:
         LIMIT 1
     """, (item_type, from_date))
 
+
+def fetch_upcoming_school_events(from_date: str, limit: int = 3) -> list[dict]:
+    """Public, common school events for the UI sidebar.
+
+    Deliberately exclude EVENT rows: those can come from a student's personal
+    calendar and do not belong in a globally visible interface.
+    """
+    return query("""
+        SELECT sched_date, item_type, start_time, end_time
+        FROM ScheduleTimeline
+        WHERE sched_date >= ?
+          AND item_type IN ('ASSEMBLY', 'TUTORIAL', 'ADVISORY')
+        ORDER BY sched_date, start_time, item_order
+        LIMIT ?
+    """, (from_date, limit))
+
 def fetch_grade_group(grade: int) -> str | None:
     rows = query("""
         SELECT gg.group_name
@@ -999,6 +1015,24 @@ def chat():
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
+
+
+@app.route("/upcoming-events")
+def upcoming_events():
+    """Read-only, school-wide event data for the sidebar."""
+    try:
+        rows = fetch_upcoming_school_events(today().isoformat())
+    except Exception:
+        logger.exception("Could not load upcoming school events")
+        return jsonify({"events": []}), 500
+
+    labels = {"ASSEMBLY": "Assembly", "TUTORIAL": "Tutorial", "ADVISORY": "Advisory"}
+    return jsonify({"events": [{
+        "date": row["sched_date"],
+        "title": labels[row["item_type"]],
+        "start_time": row["start_time"],
+        "end_time": row["end_time"],
+    } for row in rows]})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True, port=5000)
