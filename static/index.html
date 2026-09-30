@@ -9,7 +9,7 @@
 <title>Brentwood Assistant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <style>
@@ -342,6 +342,129 @@
     .drawer, .scrim { transition: none; }
   }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* ============================================================
+     Brentwood home — an editorial school desk, not a generic chat blank.
+     ============================================================ */
+  :root {
+    --red: #c8272c;
+    --red-dark: #961f25;
+    --ink: #1b1718;
+    --paper: #f7f1e7;
+    --paper-deep: #ebe0ce;
+    --forest: #193d36;
+    --sand: #d7c6a8;
+    --font: "DM Sans", sans-serif;
+    --display: "Fraunces", Georgia, serif;
+    --mono: "DM Mono", monospace;
+    --bg: var(--paper);
+    --surface: rgba(255, 252, 246, .9);
+    --surface-2: #eee4d5;
+    --header: rgba(247, 241, 231, .86);
+    --accent: var(--red);
+    --accent-2: var(--red-dark);
+    --accent-soft: rgba(200, 39, 44, .12);
+    --text: var(--ink);
+    --text-muted: #675e58;
+    --text-dim: #93877e;
+    --line: rgba(27, 23, 24, .14);
+    --shadow-bubble: 0 12px 28px rgba(62, 43, 27, .08);
+    --shadow-pop: 0 24px 70px rgba(41, 28, 20, .18);
+    --warn: #b42318;
+    --col: 760px;
+  }
+  body { background: var(--paper); color: var(--ink); color-scheme: light; }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(200,39,44,.12), transparent 24rem),
+      radial-gradient(circle at 88% 84%, rgba(25,61,54,.10), transparent 28rem),
+      repeating-linear-gradient(0deg, rgba(77,55,33,.025) 0 1px, transparent 1px 5px);
+  }
+  .app--welcome::before { background: none; }
+  .app--welcome .thread-scroll { flex: 1 1 auto; overflow-y: auto; }
+  .app--welcome .thread { padding: 32px 24px; }
+  .app--welcome .composer-dock {
+    position: sticky; background: var(--header); border-top: 1px solid var(--line);
+    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
+  }
+  .thread { max-width: var(--col); padding: 30px 24px 42px; }
+  .hero {
+    min-height: calc(100dvh - var(--dock-h)); justify-content: center; align-items: stretch;
+    gap: 0; padding: 24px 0 38px; text-align: left;
+  }
+  .welcome-kicker { font: 500 11px/1 var(--mono); color: var(--red); letter-spacing: .14em; text-transform: uppercase; margin: 0 0 18px; }
+  .welcome-head { display: grid; grid-template-columns: 94px 1fr; gap: 26px; align-items: center; margin-bottom: 46px; }
+  .brand-mark { width: 78px; height: 90px; overflow: hidden; position: relative; }
+  .brand-mark img { position: absolute; height: 90px; width: auto; max-width: none; left: 0; top: 0; }
+  .hero__title { font: 700 clamp(39px, 6.8vw, 68px)/.94 var(--display); letter-spacing: -.055em; color: var(--ink); max-width: 550px; }
+  .hero__title em { color: var(--red); font-style: italic; }
+  .hero__subtitle { grid-column: 2; font-size: 16px; line-height: 1.5; color: var(--text-muted); margin: -16px 0 0; max-width: 430px; }
+  .starter-label { display: flex; align-items: center; gap: 13px; margin-bottom: 17px; color: var(--text-muted); font: 500 12px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+  .starter-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+  .starter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+  .starter-card {
+    min-height: 164px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
+    padding: 17px; text-align: left; color: var(--ink); background: rgba(255,252,246,.72);
+    border: 1px solid var(--line); border-radius: 5px; cursor: pointer; font-family: var(--font);
+    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .starter-card:hover { transform: translateY(-4px); border-color: rgba(200,39,44,.42); box-shadow: var(--shadow-bubble); }
+  .starter-card:focus-visible { outline: 3px solid rgba(200,39,44,.35); outline-offset: 3px; }
+  .starter-card__icon { width: 32px; height: 32px; color: var(--red); }
+  .starter-card__icon svg { width: 100%; height: 100%; }
+  .starter-card__name { font: 700 20px/1.05 var(--display); letter-spacing: -.03em; }
+  .starter-card__name, .starter-card__question { display: block; }
+  .starter-card__question { margin-top: 6px; color: var(--text-muted); font-size: 13px; line-height: 1.35; }
+  .starter-card__arrow { margin-top: 13px; color: var(--red); font-size: 17px; }
+  .bubble-user { background: var(--forest); color: white; }
+  .bubble-bot { color: var(--ink); }
+  .bubble-bot a { color: var(--red); }
+  .composer-dock { background: var(--header); border-top-color: var(--line); }
+  .composer__field { background: rgba(255,252,246,.9); border-color: var(--line); border-radius: 8px; box-shadow: none; }
+  .composer__field:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px rgba(200,39,44,.1); }
+  textarea#input { color: var(--ink); }
+  textarea#input::placeholder { color: var(--text-dim); }
+  .send { width: 40px; height: 40px; border-radius: 6px; background: var(--red); }
+  .send:not(:disabled):hover { background: var(--red-dark); }
+  .menu-btn { border-radius: 7px; background: var(--red); border-color: var(--red); color: white; box-shadow: 0 8px 18px rgba(150,31,37,.24); }
+  .menu-btn:hover { background: var(--red-dark); color: white; }
+  .scrim { background: rgba(20, 16, 14, .44); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+  .drawer { width: min(352px, calc(100vw - 28px)); gap: 0; padding: calc(18px + env(safe-area-inset-top)) 18px 20px calc(18px + env(safe-area-inset-left)); background: #201b1c; border-right: 0; color: #fbf3e9; }
+  .drawer__brand { display: flex; align-items: center; gap: 11px; padding: 2px 8px 26px; }
+  .drawer__crest { width: 25px; height: 29px; overflow: hidden; position: relative; }
+  .drawer__crest img { position: absolute; height: 29px; width: auto; max-width: none; left: 0; top: 0; }
+  .drawer__eyebrow { color: #b9aaa0; font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+  .drawer__title { color: #fff9f2; font: 600 18px/1.2 var(--display); padding: 3px 0 0; }
+  .drawer-item { border-radius: 6px; color: #c7bdb8; padding: 11px 12px; }
+  .drawer-item:hover { background: #332c2d; color: #fff; }
+  .drawer-item.is-active { background: rgba(200,39,44,.19); color: #ffb0ae; }
+  .drawer-divider { height: 1px; background: rgba(255,255,255,.13); margin: 23px 8px; }
+  .sidebar-heading { color: #fff9f2; margin: 0 8px 4px; font: 600 18px/1.2 var(--display); letter-spacing: -.025em; }
+  .sidebar-subheading { color: #a99c96; margin: 0 8px 15px; font-size: 12px; }
+  .event-list { display: flex; flex-direction: column; gap: 8px; }
+  .event-card { display: grid; grid-template-columns: 42px 1fr; gap: 10px; padding: 10px 8px; border-radius: 6px; }
+  .event-card:hover { background: #2a2425; }
+  .event-date { color: #ffaaa7; font: 500 10px/1.15 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding-top: 3px; }
+  .event-title { color: #f9f0e7; font-size: 14px; font-weight: 600; line-height: 1.2; }
+  .event-time { color: #a99c96; font-size: 12px; margin-top: 3px; }
+  .event-empty { color: #a99c96; padding: 8px; font-size: 13px; line-height: 1.45; }
+  .drawer-footer { margin-top: auto; padding: 20px 8px 0; color: #887c76; font: 10px/1.35 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+  @media (max-width: 640px) {
+    .app--welcome .thread { padding: 18px 16px 22px; }
+    .hero { min-height: calc(100dvh - var(--dock-h)); padding: 15px 0 26px; }
+    .welcome-head { grid-template-columns: 64px 1fr; gap: 16px; margin-bottom: 31px; }
+    .brand-mark { width: 57px; height: 66px; }
+    .brand-mark img { height: 66px; }
+    .hero__title { font-size: clamp(37px, 11vw, 54px); }
+    .hero__subtitle { grid-column: 1 / -1; margin: -6px 0 0; font-size: 14px; }
+    .starter-grid { grid-template-columns: 1fr; gap: 8px; }
+    .starter-card { min-height: auto; display: grid; grid-template-columns: 32px 1fr 18px; column-gap: 13px; align-items: center; padding: 13px; }
+    .starter-card__icon { grid-row: 1 / span 2; }
+    .starter-card__name { font-size: 18px; }
+    .starter-card__question { margin: 3px 0 0; }
+    .starter-card__arrow { grid-column: 3; grid-row: 1 / span 2; margin: 0; }
+  }
 </style>
 </head>
 <body>
@@ -349,8 +472,14 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
   </button>
   <div class="scrim" id="scrim"></div>
-  <aside class="drawer" id="drawer" aria-label="Views">
-    <div class="drawer__title">Brentwood Assistant</div>
+  <aside class="drawer" id="drawer" aria-label="Navigation and upcoming school events">
+    <div class="drawer__brand">
+      <div class="drawer__crest"><img src="brentwood-logo.svg" alt="" /></div>
+      <div>
+        <div class="drawer__eyebrow">Brentwood College School</div>
+        <div class="drawer__title">Student desk</div>
+      </div>
+    </div>
     <button type="button" class="drawer-item is-active" id="navChat">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span>Chat</span>
@@ -359,6 +488,15 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
       <span>Map</span>
     </button>
+    <div class="drawer-divider"></div>
+    <section aria-labelledby="upcomingHeading">
+      <h2 class="sidebar-heading" id="upcomingHeading">Upcoming school events</h2>
+      <p class="sidebar-subheading">Assembly, tutorial &amp; advisory</p>
+      <div class="event-list" id="upcomingEvents" aria-live="polite">
+        <p class="event-empty">Loading events…</p>
+      </div>
+    </section>
+    <div class="drawer-footer">Where students choose to be</div>
   </aside>
   <div class="app">
     <!-- Thread -->
@@ -366,7 +504,30 @@
       <div class="thread">
         <!-- Welcome -->
         <section class="hero" id="hero">
-          <h1 class="hero__title">Brentwood Assistant</h1>
+          <p class="welcome-kicker">Student assistant · 2026–27</p>
+          <div class="welcome-head">
+            <div class="brand-mark"><img src="brentwood-logo.svg" alt="Brentwood College School" /></div>
+            <h1 class="hero__title">School questions,<br /><em>sorted.</em></h1>
+            <p class="hero__subtitle">Meals, block order, campus locations, and the school calendar — all in one place.</p>
+          </div>
+          <div class="starter-label">What should we start with?</div>
+          <div class="starter-grid" aria-label="Common questions">
+            <button type="button" class="starter-card" data-prompt="What is for lunch today?">
+              <span class="starter-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v8M5 3v5a3 3 0 0 0 6 0V3M8 11v10M16 3v18M13 3v6a3 3 0 0 0 6 0V3"/></svg></span>
+              <span><span class="starter-card__name">Food</span><span class="starter-card__question">What’s on the menu today?</span></span>
+              <span class="starter-card__arrow" aria-hidden="true">↗</span>
+            </button>
+            <button type="button" class="starter-card" data-prompt="What is the block order today?">
+              <span class="starter-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6"/></svg></span>
+              <span><span class="starter-card__name">Block order</span><span class="starter-card__question">What does today look like?</span></span>
+              <span class="starter-card__arrow" aria-hidden="true">↗</span>
+            </button>
+            <button type="button" class="starter-card" data-prompt="Where is Crooks Hall?">
+              <span class="starter-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+              <span><span class="starter-card__name">Campus map</span><span class="starter-card__question">Where can I find a building?</span></span>
+              <span class="starter-card__arrow" aria-hidden="true">↗</span>
+            </button>
+          </div>
         </section>
 
         <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
@@ -665,6 +826,68 @@
   }
   navChatBtn.addEventListener("click", () => { showView("chat"); setDrawer(false); });
   navMapBtn.addEventListener("click", () => { showView("map"); setDrawer(false); });
+
+  // ---------------- Welcome shortcuts ----------------
+  document.querySelectorAll(".starter-card[data-prompt]").forEach((card) => {
+    card.addEventListener("click", () => sendMessage(card.dataset.prompt));
+  });
+
+  // ---------------- Public school-event sidebar ----------------
+  const upcomingEventsEl = document.getElementById("upcomingEvents");
+  const eventDateFormatter = new Intl.DateTimeFormat("en-CA", {
+    weekday: "short", month: "short", day: "numeric", timeZone: "America/Vancouver"
+  });
+  function time12(value) {
+    if (!value) return "";
+    const [hour, minute] = value.split(":").map(Number);
+    const suffix = hour >= 12 ? "PM" : "AM";
+    return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${suffix}`;
+  }
+  function eventDate(dateKey) {
+    return eventDateFormatter.format(new Date(dateKey + "T12:00:00Z"));
+  }
+  function renderUpcomingEvents(events) {
+    upcomingEventsEl.replaceChildren();
+    if (!events.length) {
+      const empty = document.createElement("p");
+      empty.className = "event-empty";
+      empty.textContent = "No upcoming common events in the current schedule.";
+      upcomingEventsEl.appendChild(empty);
+      return;
+    }
+    events.forEach((event) => {
+      const row = document.createElement("article");
+      row.className = "event-card";
+      const date = document.createElement("div");
+      date.className = "event-date";
+      date.textContent = eventDate(event.date);
+      const detail = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "event-title";
+      title.textContent = event.title;
+      const time = document.createElement("div");
+      time.className = "event-time";
+      time.textContent = `${time12(event.start_time)} – ${time12(event.end_time)}`;
+      detail.append(title, time);
+      row.append(date, detail);
+      upcomingEventsEl.appendChild(row);
+    });
+  }
+  async function loadUpcomingEvents() {
+    try {
+      const response = await fetch("/upcoming-events", { headers: { "Accept": "application/json" } });
+      if (!response.ok) throw new Error("event feed unavailable");
+      const data = await response.json();
+      renderUpcomingEvents(Array.isArray(data.events) ? data.events : []);
+    } catch (_) {
+      upcomingEventsEl.replaceChildren();
+      const message = document.createElement("p");
+      message.className = "event-empty";
+      message.textContent = "Events are unavailable right now.";
+      upcomingEventsEl.appendChild(message);
+    }
+  }
+  loadUpcomingEvents();
 
   // ---------------- Campus map search ----------------
   // x/y are percentages of the map image (1536x1024).
