@@ -169,12 +169,12 @@
   }
   /* Campus aerial photo at low opacity behind the hero, under a dark overlay
      that fades into the page background so the heading stays readable.
-     Source: static/campus-hero.jpg (640x480 — slight blur hides the upscale). */
+     Source: static/campus-hero.webp (Centre for Innovation and Learning). */
   .hero::before {
     content: ""; position: absolute; inset: -60px -28px -40px; z-index: -1; pointer-events: none;
-    background-image: url("campus-hero.jpg");
-    background-size: cover; background-position: center 40%;
-    opacity: 0.32; filter: blur(1px) saturate(0.85);
+    background-image: url("campus-hero.webp");
+    background-size: cover; background-position: center 45%;
+    opacity: 0.30; filter: saturate(0.85);
     -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
     mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
   }
