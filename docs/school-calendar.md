@@ -14,6 +14,25 @@ ambiguous leave data fails without overwriting the previous snapshot. Dates are
 never projected into an unpublished year. The parser handles the published
 non-recurring leave format; changed titles/formats need review.
 
+## Sidebar highlights
+
+The same midnight refresh also caches non-recurring events from the public
+calendar, with their exact titles and Vancouver times. Cancelled, private and
+recurring entries are excluded. The sidebar puts these special events before
+regular Assembly, Tutorial and Advisory periods, ordered by date within each
+group, showing at most three entries from the next 14 days. Ongoing events stay
+visible until they end; all-day and multi-day events retain their date ranges.
+School breaks retain the separately parsed departure time rather than displaying
+an all-day label for a timed departure.
+
+`data/featured_events.json` contains specific events the owner asked to publish.
+South Island Powwow 2026 on September 30, 10:00–14:30 was supplied by the owner;
+it was absent from the public calendar checked on September 29. This dated entry
+expires after 14:30 and is not repeated in later years. General `EVENT` rows in
+the personal MySchool feed are never copied into the public sidebar. Event
+listing does not imply that every student participates or regular classes cancel.
+No additional calendar request or model call runs when the sidebar opens.
+
 ## Dates verified September 23, 2026
 
 | Leave | Starts | Return to campus / last leave date | Classes resume |

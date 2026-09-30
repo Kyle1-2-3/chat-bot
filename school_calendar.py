@@ -1,4 +1,4 @@
-"""Official school-wide leaves, independent of any student's MySchool feed."""
+"""Public school calendar and leaves, independent of students' MySchool feeds."""
 import json
 import os
 from pathlib import Path
@@ -111,7 +111,45 @@ def parse_calendar(text, reference_date):
             next_day = (date.fromisoformat(row["last_leave_date"]) + timedelta(days=1)).isoformat()
             if next_day in resumes:
                 row["classes_resume_date"] = next_day
-    return {"checked_on": reference_date.isoformat(), "source_url": SOURCE_URL, "leaves": leaves}
+    public_events = []
+    leaves_by_title = {row["source_title"]: row for row in leaves}
+    for _, fields, params in events.values():
+        if fields.get("STATUS") == "CANCELLED" or fields.get("CLASS", "PUBLIC") != "PUBLIC":
+            continue
+        # Recurring entries are not exceptional events. Do not fabricate their
+        # occurrences or surface detached overrides from those series.
+        if any(key in fields for key in ("RRULE", "RECURRENCE-ID", "RDATE")):
+            continue
+        title = " ".join(_unescape(fields.get("SUMMARY", "")).split())
+        if not title or "DTSTART" not in fields:
+            continue
+        if title.casefold() in {"assembly", "tutorial", "advisory", "advisor", "cookie break", "inspection"}:
+            continue
+        start, start_time = _event_date(fields["DTSTART"], params.get("DTSTART", {}))
+        if not first <= start < until:
+            continue
+        all_day = start_time is None
+        if "DTEND" in fields:
+            end, end_time = _event_date(fields["DTEND"], params.get("DTEND", {}))
+            if all_day:
+                end -= timedelta(days=1)  # iCal's all-day end is exclusive.
+        else:
+            end, end_time = start, None
+        if end < start or (end == start and start_time and end_time and end_time < start_time):
+            raise ValueError("Public event has an invalid interval")
+        if title in leaves_by_title:
+            leave = leaves_by_title[title]
+            title = leave["name"]
+            start_time = leave["start_time"]
+            end = date.fromisoformat(leave["last_leave_date"] or leave["start_date"])
+            end_time, all_day = None, start_time is None
+        public_events.append({
+            "date": start.isoformat(), "end_date": end.isoformat(), "title": title,
+            "start_time": start_time or "", "end_time": end_time or "",
+            "all_day": all_day,
+        })
+    return {"checked_on": reference_date.isoformat(), "source_url": SOURCE_URL,
+            "leaves": leaves, "events": public_events}
 
 
 def load_calendar():
@@ -131,7 +169,8 @@ def calendar_result(reference_date):
     first = date(year, 8, 1).isoformat()
     rows = [{**r, "days_until_start": (date.fromisoformat(r["start_date"]) - reference_date).days}
             for r in data["leaves"] if r["start_date"] >= first]
-    return {**data, "leaves": rows, "today": reference_date.isoformat()}
+    return {**{k: v for k, v in data.items() if k != "events"},
+            "leaves": rows, "today": reference_date.isoformat()}
 
 
 def leave_on(day):

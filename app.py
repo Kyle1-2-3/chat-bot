@@ -18,6 +18,7 @@ import urllib.parse
 from contextlib import closing
 from school_knowledge import search_school_knowledge
 from school_calendar import calendar_result, leave_on
+from school_events import upcoming_events as prioritize_upcoming_events
 
 load_dotenv()
 
@@ -254,20 +255,28 @@ def fetch_next_event(item_type: str, from_date: str) -> list[dict]:
     """, (item_type, from_date))
 
 
-def fetch_upcoming_school_events(from_date: str, limit: int = 3) -> list[dict]:
-    """Public, common school events for the UI sidebar.
+def fetch_upcoming_school_events(now: datetime, limit: int = 3) -> list[dict]:
+    """Public highlights first, then common school events for the UI sidebar.
 
     Deliberately exclude EVENT rows: those can come from a student's personal
     calendar and do not belong in a globally visible interface.
     """
-    return query("""
+    rows = query("""
         SELECT sched_date, item_type, start_time, end_time
         FROM ScheduleTimeline
-        WHERE sched_date >= ?
+        WHERE sched_date BETWEEN ? AND ?
           AND item_type IN ('ASSEMBLY', 'TUTORIAL', 'ADVISORY')
         ORDER BY sched_date, start_time, item_order
-        LIMIT ?
-    """, (from_date, limit))
+    """, (now.date().isoformat(), (now.date() + timedelta(days=14)).isoformat()))
+    labels = {"ASSEMBLY": "Assembly", "TUTORIAL": "Tutorial", "ADVISORY": "Advisory"}
+    regular = [{"date": row["sched_date"], "title": labels[row["item_type"]],
+                "start_time": row["start_time"], "end_time": row["end_time"]} for row in rows]
+    return prioritize_upcoming_events(now, regular, limit)
+
+
+def current_school_time():
+    """Vancouver clock, retaining the existing FAKE_TODAY demo override."""
+    return datetime.combine(today(), datetime.now(SCHOOL_TZ).time(), SCHOOL_TZ)
 
 def fetch_grade_group(grade: int) -> str | None:
     rows = query("""
@@ -1020,20 +1029,14 @@ def index():
 @app.route("/upcoming-events")
 @app.route("/api/upcoming-events")
 def upcoming_events():
-    """Read-only, school-wide event data for the sidebar."""
+    """Read-only public school-calendar highlights for the sidebar."""
     try:
-        rows = fetch_upcoming_school_events(today().isoformat())
+        rows = fetch_upcoming_school_events(current_school_time())
     except Exception:
         logger.exception("Could not load upcoming school events")
         return jsonify({"events": []}), 500
 
-    labels = {"ASSEMBLY": "Assembly", "TUTORIAL": "Tutorial", "ADVISORY": "Advisory"}
-    return jsonify({"events": [{
-        "date": row["sched_date"],
-        "title": labels[row["item_type"]],
-        "start_time": row["start_time"],
-        "end_time": row["end_time"],
-    } for row in rows]})
+    return jsonify({"events": rows})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True, port=5000)
