@@ -103,12 +103,11 @@
     overflow-y: auto;
   }
   .brand {
-    display: flex; flex-direction: column; align-items: center; text-align: center;
-    gap: 10px; padding: 14px 8px 26px; text-decoration: none; color: inherit;
+    display: block; width: 100%; padding: 12px 18px 24px; margin: 0;
+    background: transparent; border: none; cursor: pointer; border-radius: var(--radius-sm);
   }
-  .brand__crest { width: 56px; height: 63px; }
-  .brand__name { font-size: 18px; font-weight: 700; letter-spacing: 0.08em; color: var(--red); line-height: 1.1; text-transform: uppercase; }
-  .brand__sub { display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.22em; color: var(--muted); margin-top: 3px; }
+  .brand__logo { display: block; width: 100%; max-width: 176px; height: auto; margin: 0 auto; }
+  .brand:hover .brand__logo { opacity: 0.9; }
 
   .nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .nav-item {
@@ -135,8 +134,17 @@
     -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
   }
   .topbar__crest { width: 26px; height: 29px; }
-  .topbar__title { font-size: 15px; font-weight: 600; }
+  .topbar__brand { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; padding: 6px 8px; border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 8px; text-align: left; }
+  .topbar__brand:hover { background: var(--glass-hover); }
+  .topbar__title { font-size: 15px; font-weight: 600; white-space: nowrap; }
   .topbar__title strong { color: var(--red); font-weight: 700; }
+  .home-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px;
+    border: 1px solid var(--line); border-radius: 9999px; background: var(--glass); color: var(--muted);
+    font-size: 13.5px; font-weight: 600; cursor: pointer;
+  }
+  .home-btn:hover { color: var(--text); border-color: rgba(200,16,46,0.5); background: var(--glass-hover); }
+  .home-btn .icon { width: 17px; height: 17px; }
   .menu-btn {
     width: 44px; height: 44px; border-radius: 10px; border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -472,17 +480,22 @@
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
-      <img class="topbar__crest" src="crest.png" alt="" />
-      <span class="topbar__title">Brentwood <strong>Assistant</strong></span>
+      <button type="button" class="topbar__brand" data-view="home" aria-label="Home">
+        <img class="topbar__crest" src="crest.png" alt="" />
+        <span class="topbar__title">Brentwood <strong>Assistant</strong></span>
+      </button>
+      <button type="button" class="home-btn" data-view="home" aria-label="Home">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+        <span>Home</span>
+      </button>
     </header>
     <div class="scrim" id="scrim"></div>
 
     <!-- Sidebar (fixed on desktop, drawer below 1200px) -->
     <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-      <a class="brand" href="/" aria-label="Brentwood College School — home">
-        <img class="brand__crest" src="crest.png" alt="" />
-        <span><span class="brand__name">Brentwood</span><span class="brand__sub">College School</span></span>
-      </a>
+      <button type="button" class="brand" data-view="home" aria-label="Brentwood College School — home">
+        <img class="brand__logo" src="brentwood-logo-stacked.png" alt="Brentwood College School" />
+      </button>
       <nav aria-label="Sections">
         <ul class="nav" id="nav">
           <li><button type="button" class="nav-item is-active" data-view="home" aria-current="page">
