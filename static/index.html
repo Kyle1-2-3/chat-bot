@@ -6,141 +6,705 @@
      sticky composer lands on top of it (Android Chrome pans instead by default) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
 <meta name="color-scheme" content="dark" />
+<meta name="description" content="Brentwood Assistant — your quick guide to life at Brentwood College School." />
 <title>Brentwood Assistant</title>
-<link rel="stylesheet" href="chat.css?v=20260929-events" />
+<link rel="icon" href="crest.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<style>
+  /* ============================================================
+     Brentwood Assistant — student information hub
+     Dark, institutional, Brentwood red accent.
+     Layout: [sidebar] [main: hero + quick actions + chat] [info panel]
+     ============================================================ */
+  :root {
+    /* Base surfaces */
+    --bg:          #0e0e10;
+    --bg-2:        #141416;
+    --bg-3:        #1a1a1d;
+    --glass:       rgba(255, 255, 255, 0.045);
+    --glass-hover: rgba(255, 255, 255, 0.075);
+    --header:      rgba(14, 14, 16, 0.86);
+
+    /* Brentwood red */
+    --red:       #c8102e;
+    --red-hover: #de1a3a;
+    --red-deep:  #6e0b1c;
+    --red-soft:  rgba(200, 16, 46, 0.14);
+    --red-tint:  rgba(200, 16, 46, 0.30);
+
+    /* Text */
+    --text:      #f2f2f3;
+    --muted:     #a3a6ad;
+    --dim:       #6f7279;
+    --on-red:    #ffffff;
+
+    /* Lines + depth */
+    --line:        rgba(255, 255, 255, 0.09);
+    --line-strong: rgba(255, 255, 255, 0.18);
+    --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md:   0 8px 24px rgba(0, 0, 0, 0.35);
+
+    --warn: #ff7a6e;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+    --radius:    14px;
+    --radius-sm: 10px;
+    --sidebar-w: 248px;
+    --panel-w:   320px;
+    --thread-w:  760px;
+    --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--red);
+  }
+
+  * { box-sizing: border-box; }
+  /* overflow-anchor off: when the keyboard opens/closes the browser would
+     otherwise re-anchor the document scroll and the conversation visibly
+     slides — keep the text where the reader left it instead */
+  html, body { margin: 0; padding: 0; height: 100%; overflow-anchor: none; }
+  body {
+    font-family: var(--font); font-size: 15px; line-height: 1.5;
+    color: var(--text); background: var(--bg); color-scheme: dark;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  button { font-family: inherit; }
+  :focus-visible { outline: none; box-shadow: var(--focus); }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .skip-link {
+    position: absolute; left: 12px; top: -48px; z-index: 100;
+    background: var(--red); color: var(--on-red); padding: 8px 14px; border-radius: 8px;
+    font-weight: 600; text-decoration: none; transition: top 120ms ease;
+  }
+  .skip-link:focus { top: 12px; }
+  .icon { width: 20px; height: 20px; flex: 0 0 auto; }
+
+  /* ---------------- Shell grid ----------------
+     Fixed to the visible viewport (minus the on-screen keyboard, --kb, fed by
+     the VisualViewport JS): the document itself never scrolls, the main column
+     does. Keeps WebKit from panning the whole page when the keyboard opens. */
+  .shell {
+    display: grid; height: 100%; height: calc(100dvh - var(--kb, 0px));
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--panel-w);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "side main panel";
+  }
+  .sidebar { grid-area: side; }
+  .app, .map-view { grid-area: main; min-width: 0; }
+  .panel { grid-area: panel; }
+  .topbar { display: none; grid-area: top; }
+
+  /* ---------------- Sidebar ---------------- */
+  .sidebar {
+    display: flex; flex-direction: column;
+    background: var(--bg-2); border-right: 1px solid var(--line);
+    padding: 22px 14px calc(16px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    overflow-y: auto;
+  }
+  .brand {
+    display: block; width: 100%; padding: 12px 18px 24px; margin: 0;
+    background: transparent; border: none; cursor: pointer; border-radius: var(--radius-sm);
+  }
+  .brand__logo { display: block; width: 100%; max-width: 176px; height: auto; margin: 0 auto; }
+  .brand:hover .brand__logo { opacity: 0.9; }
+
+  .nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    width: 100%; display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border: 1px solid transparent; border-radius: var(--radius-sm);
+    background: transparent; color: var(--muted); cursor: pointer; text-align: left;
+    font-size: 14.5px; font-weight: 500; min-height: 44px;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+  .nav-item:hover { background: var(--glass-hover); color: var(--text); }
+  .nav-item.is-active {
+    background: linear-gradient(90deg, rgba(110,11,28,0.85), rgba(110,11,28,0.35));
+    border-color: rgba(200,16,46,0.35); color: var(--text);
+  }
+  .nav-item.is-active .icon { color: #ff8a9a; }
+  .sidebar__spacer { flex: 1 1 auto; }
+  .sidebar__rule { border: 0; border-top: 1px solid var(--line); margin: 14px 8px; }
+
+  /* ---------------- Topbar (tablet / mobile only) ---------------- */
+  .topbar {
+    align-items: center; gap: 10px; height: 56px;
+    padding: 0 12px 0 calc(8px + env(safe-area-inset-left));
+    background: var(--header); border-bottom: 1px solid var(--line);
+    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
+  }
+  .topbar__crest { width: 26px; height: 29px; }
+  .topbar__brand { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; padding: 6px 8px; border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 8px; text-align: left; }
+  .topbar__brand:hover { background: var(--glass-hover); }
+  .topbar__title { font-size: 15px; font-weight: 600; white-space: nowrap; }
+  .topbar__title strong { color: var(--red); font-weight: 700; }
+  .home-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px;
+    border: 1px solid var(--line); border-radius: 9999px; background: var(--glass); color: var(--muted);
+    font-size: 13.5px; font-weight: 600; cursor: pointer;
+  }
+  .home-btn:hover { color: var(--text); border-color: rgba(200,16,46,0.5); background: var(--glass-hover); }
+  .home-btn .icon { width: 17px; height: 17px; }
+  .menu-btn {
+    width: 44px; height: 44px; border-radius: 10px; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--text);
+  }
+  .menu-btn:hover { background: var(--glass-hover); }
+  .menu-btn .icon { width: 24px; height: 24px; }
+  .scrim {
+    position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.55);
+    opacity: 0; pointer-events: none; transition: opacity 200ms ease;
+  }
+  .scrim.is-open { opacity: 1; pointer-events: auto; }
+
+  /* ---------------- Main column: chat ---------------- */
+  .app { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+  .main-scroll {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-anchor: none;
+    -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
+  }
+  .main-inner { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 28px 28px; }
+  /* Before the first message: centre the welcome block in the space above the
+     composer so tall screens don't show a void under the cards. */
+  .app.is-welcome .main-scroll { display: flex; flex-direction: column; }
+  .app.is-welcome .main-inner { margin: auto; }
+
+  /* Hero */
+  .hero {
+    position: relative; padding: 44px 0 26px; margin-bottom: 6px;
+    isolation: isolate; /* keeps the z-index:-1 photo/overlay above the page bg but under the text */
+  }
+  /* Campus aerial photo at low opacity behind the hero, under a dark overlay
+     that fades into the page background so the heading stays readable.
+     Source: static/campus-hero.webp (Centre for Innovation and Learning). */
+  .hero::before {
+    content: ""; position: absolute; inset: -60px -28px -40px; z-index: -1; pointer-events: none;
+    background-image: url("campus-hero.webp");
+    background-size: cover; background-position: center 45%;
+    opacity: 0.30; filter: saturate(0.85);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  }
+  .hero::after {
+    content: ""; position: absolute; inset: -60px -28px -40px; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(60% 70% at 10% 0%, rgba(200,16,46,0.18) 0%, rgba(200,16,46,0) 70%),
+      linear-gradient(180deg, rgba(14,14,16,0.15) 0%, rgba(14,14,16,0.55) 60%, var(--bg) 100%);
+  }
+  .hero__kicker { font-size: 12px; font-weight: 600; letter-spacing: 0.18em; color: var(--muted); margin: 0 0 10px; }
+  .hero__title { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.08; margin: 0 0 12px; }
+  .hero__title em { font-style: normal; color: var(--red); }
+  .hero__sub { font-size: 17px; color: var(--muted); margin: 0; max-width: 620px; line-height: 1.5; }
+  .hero__sub strong { color: var(--text); font-weight: 500; }
+
+  /* Quick action cards */
+  .section-title { font-size: 15px; font-weight: 600; margin: 0 0 12px; color: var(--text); }
+  .qa { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .qa-card {
+    width: 100%; height: 100%; min-height: 156px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+    padding: 16px 16px 14px; text-align: left; cursor: pointer;
+    background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius);
+    color: var(--text); box-shadow: var(--shadow-sm);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    transition: border-color 140ms ease, transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  }
+  .qa-card:hover { border-color: rgba(200,16,46,0.5); background: var(--glass-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .qa-card__icon {
+    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--red-soft); color: #ff5f75; border: 1px solid rgba(200,16,46,0.3);
+  }
+  .qa-card__title { font-size: 15px; font-weight: 600; line-height: 1.25; }
+  .qa-card__prompt { font-size: 13px; color: var(--muted); line-height: 1.4; flex: 1 1 auto; }
+  .qa-card__go { align-self: flex-end; color: var(--dim); }
+  .qa-card:hover .qa-card__go { color: var(--red-hover); }
+
+  /* Welcome block hides once a conversation starts (Home brings it back) */
+  .welcome.is-hidden { display: none; }
+  /* On tablet/mobile the info panel is moved into this slot by JS */
+  .panel-slot:empty { display: none; }
+
+  /* ---------------- Messages (user bubble · AI plain text) ---------------- */
+  .thread { width: 100%; max-width: var(--thread-w); margin: 0 auto; padding-top: 12px; }
+  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 22px; }
+  .turn--user { justify-content: flex-end; }
+  .turn--bot  { display: block; margin-bottom: 34px; }
+  .bubble {
+    max-width: 78%; font-size: 16px; line-height: 1.6;
+    padding: 11px 17px; border-radius: 18px;
+    white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: var(--shadow-sm);
+  }
+  .bubble-user { background: var(--bg-3); border: 1px solid var(--line); color: var(--text); border-bottom-right-radius: 6px; }
+  .bubble-bot {
+    max-width: 100%; background: none; color: var(--text);
+    padding: 2px 0; border-radius: 0; box-shadow: none; line-height: 1.75; white-space: normal;
+  }
+  .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; gap: 4px; }
+  .bot-col .bubble { max-width: 100%; }
+  .bot-mark { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--dim); margin-bottom: 4px; }
+  .bot-mark img { width: 16px; height: 18px; }
+
+  .bubble-bot > :first-child { margin-top: 0; }
+  .bubble-bot > :last-child { margin-bottom: 0; }
+  .bubble-bot p { margin: 0 0 14px; }
+  .bubble-bot h1, .bubble-bot h2, .bubble-bot h3 { font-weight: 600; line-height: 1.3; margin: 20px 0 10px; }
+  .bubble-bot h1 { font-size: 22px; } .bubble-bot h2 { font-size: 19px; } .bubble-bot h3 { font-size: 16px; }
+  .bubble-bot ul, .bubble-bot ol { margin: 0 0 14px; padding-left: 24px; }
+  .bubble-bot li { margin: 4px 0; }
+  .bubble-bot strong { font-weight: 600; }
+  .bubble-bot a { color: #ff8a9a; text-decoration: underline; text-decoration-color: rgba(255,138,154,0.4); text-underline-offset: 2px; }
+  .bubble-bot a:hover { text-decoration-color: currentColor; }
+  .bubble-bot code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; background: var(--bg-3); padding: 1px 5px; border-radius: 5px; }
+  .bubble-bot pre { background: var(--bg-3); padding: 12px 14px; border-radius: 10px; overflow-x: auto; margin: 0 0 14px; }
+  .bubble-bot pre code { background: none; padding: 0; }
+
+  .bot-actions { height: 0; overflow: hidden; opacity: 0; transition: opacity 0.18s ease; }
+  .turn--bot:hover .bot-actions, .turn--bot:focus-within .bot-actions { height: auto; opacity: 1; }
+  .copy-btn {
+    font-size: 13px; font-weight: 600; color: var(--muted); background: transparent; border: none;
+    padding: 4px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px;
+  }
+  .copy-btn:hover { color: var(--text); }
+  .copy-btn .icon { width: 13px; height: 13px; }
+
+  /* Typing dots — Brentwood red */
+  .typing { display: inline-flex; align-items: center; gap: 5px; padding: 3px 1px; }
+  .typing span { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: bounce 1.2s infinite ease-in-out both; }
+  .typing span:nth-child(2) { animation-delay: 0.18s; }
+  .typing span:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+
+  /* Inline error + retry */
+  .error-note { color: var(--muted); }
+  .error-note a { color: #ff8a9a; }
+  .retry {
+    margin-top: 4px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 14px; font-weight: 600; color: #ff8a9a;
+    background: var(--red-soft); border: 1px solid rgba(200,16,46,0.35); border-radius: 9999px;
+    padding: 8px 15px; cursor: pointer; min-height: 40px;
+  }
+  .retry:hover { background: var(--red-tint); }
+  .retry .icon { width: 15px; height: 15px; }
+
+  /* ---------------- Composer ---------------- */
+  .composer-dock {
+    position: sticky; bottom: 0; z-index: 20; flex: 0 0 auto;
+    background: var(--header); border-top: 1px solid var(--line);
+    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .composer { width: 100%; max-width: 1040px; margin: 0 auto; padding: 12px 28px 10px; }
+  .composer__field {
+    display: flex; align-items: flex-end; gap: 8px;
+    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 26px;
+    padding: 5px 5px 5px 20px; box-shadow: var(--shadow-sm); transition: border-color 0.18s ease;
+  }
+  .composer__field:focus-within { border-color: rgba(200,16,46,0.7); }
+  textarea#input {
+    flex: 1 1 auto; resize: none; border: none; outline: none; background: transparent; box-shadow: none;
+    font-family: var(--font); font-size: 16px; line-height: 1.5; color: var(--text);
+    padding: 10px 0; max-height: 132px; overflow-y: auto;
+  }
+  textarea#input::placeholder { color: var(--dim); }
+  .send {
+    flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: var(--red); color: var(--on-red); display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: var(--shadow-sm); transition: transform 0.12s ease, background 0.18s ease;
+  }
+  .send .icon { width: 19px; height: 19px; }
+  .send:not(:disabled):hover { background: var(--red-hover); }
+  .send:not(:disabled):active { transform: scale(0.94); }
+  .send:disabled { background: var(--bg-3); color: var(--dim); cursor: default; box-shadow: none; }
+
+  .composer__meta { display: flex; align-items: center; gap: 8px; padding: 10px 2px 0; min-height: 20px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .chip {
+    font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap;
+    background: var(--glass); border: 1px solid var(--line); border-radius: 9999px;
+    padding: 7px 13px; cursor: pointer; min-height: 34px;
+    transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+  }
+  .chip:hover { color: var(--text); border-color: rgba(200,16,46,0.5); background: var(--glass-hover); }
+  /* Counter stays out of the way until the message is getting long */
+  .counter { font-size: 11px; font-weight: 500; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; }
+  .counter[hidden] { display: none; }
+  .counter.is-warn { color: var(--warn); }
+
+  /* ---------------- Info panel ---------------- */
+  .panel {
+    display: flex; flex-direction: column; gap: 14px;
+    background: var(--bg-2); border-left: 1px solid var(--line);
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom)) 18px; overflow-y: auto;
+  }
+  .card {
+    background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 16px 14px; box-shadow: var(--shadow-sm);
+  }
+  .card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
+  .card__title { font-size: 15px; font-weight: 600; margin: 0; }
+  .card__link { font-size: 12.5px; font-weight: 500; color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; }
+  .card__link:hover { color: var(--text); }
+  .card__link .icon { width: 14px; height: 14px; }
+
+  .linklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .linklist button {
+    width: 100%; display: flex; align-items: center; gap: 8px; min-height: 40px;
+    padding: 8px 6px; border: none; border-radius: 8px; background: transparent; color: var(--muted);
+    font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; transition: color 140ms ease, background 140ms ease;
+  }
+  .linklist button:hover { color: var(--text); background: var(--glass-hover); }
+  .linklist .icon { width: 15px; height: 15px; color: var(--red); }
+
+  .events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .event { display: grid; grid-template-columns: 46px 1fr; gap: 12px; align-items: start; }
+  .event__date { text-align: center; border-right: 2px solid var(--red); padding-right: 10px; line-height: 1.05; }
+  .event__mon { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--red); text-transform: uppercase; }
+  .event__day { display: block; font-size: 22px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .event__name { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.3; }
+  .event__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+  .event__meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .event__meta .icon { width: 13px; height: 13px; }
+  .event__tag { font-size: 11px; font-weight: 600; color: #ff8a9a; background: var(--red-soft); border-radius: 6px; padding: 1px 6px; }
+  .event__meta a { color: inherit; }
+  .events-empty { font-size: 13.5px; color: var(--muted); margin: 0; }
+  .skeleton { height: 40px; border-radius: 8px; background: linear-gradient(90deg, var(--glass) 25%, var(--glass-hover) 50%, var(--glass) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .btn-outline {
+    display: block; width: 100%; margin-top: 14px; padding: 10px 14px; min-height: 42px;
+    text-align: center; text-decoration: none; font-size: 13.5px; font-weight: 600; color: var(--text);
+    background: var(--red-soft); border: 1px solid rgba(200,16,46,0.45); border-radius: 9999px;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .btn-outline:hover { background: var(--red-tint); border-color: var(--red); }
+  .panel__note { font-size: 12px; color: var(--dim); margin: 0; padding: 0 4px; }
+  .panel__note a { color: var(--muted); }
+
+  /* ---------------- Map view (Campus) ---------------- */
+  .map-view { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+  .map-view[hidden] { display: none; } /* author display:flex beats the UA's [hidden] — restore it */
+  .map-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 20px; background: var(--header); border-bottom: 1px solid var(--line);
+    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
+  }
+  .map-head h2 { font-size: 16px; font-weight: 600; margin: 0 8px 0 0; }
+  #mapSearch {
+    flex: 0 1 360px; min-width: 0; font-family: var(--font); font-size: 15px; color: var(--text);
+    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 9999px; padding: 9px 18px; outline: none;
+  }
+  #mapSearch:focus { border-color: rgba(200,16,46,0.7); box-shadow: none; }
+  #mapSearch::placeholder { color: var(--dim); }
+  .map-status { font-size: 13px; font-weight: 500; color: var(--dim); white-space: nowrap; }
+  .map-status.is-error { color: var(--warn); }
+  .map-stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
+  .map-canvas { position: relative; max-width: 1200px; min-width: 720px; margin: 0 auto; }
+  .map-canvas img { display: block; width: 100%; border-radius: 14px; user-select: none; -webkit-user-select: none; }
+  .map-pin { position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
+  .map-pin__dot {
+    display: block; width: 16px; height: 16px; box-sizing: border-box;
+    background: var(--red); border: 3px solid #fff; border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(200,16,46,0.55); animation: pin-pulse 1.6s infinite;
+  }
+  @keyframes pin-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(200,16,46,0.55); }
+    70%  { box-shadow: 0 0 0 18px rgba(200,16,46,0); }
+    100% { box-shadow: 0 0 0 0 rgba(200,16,46,0); }
+  }
+  .map-pin__label {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+    padding: 3px 10px; border-radius: 9999px; background: rgba(14,14,16,0.9); border: 1px solid var(--line);
+    color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+
+  /* ---------------- Responsive ----------------
+     Tablet (<1200px): sidebar becomes a drawer, panel moves under the main
+     content (JS relocates the node into .panel-slot). */
+  @media (max-width: 1199px) {
+    .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "top" "main"; }
+    .topbar { display: flex; }
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 70; width: 280px; max-width: 86vw;
+      padding-top: calc(18px + env(safe-area-inset-top)); box-shadow: var(--shadow-md);
+      transform: translateX(-100%); visibility: hidden;
+      transition: transform 200ms ease, visibility 0s linear 200ms;
+    }
+    .sidebar.is-open { transform: translateX(0); visibility: visible; transition: transform 200ms ease; }
+    .panel { border-left: none; background: transparent; padding: 0; overflow: visible; }
+    .panel .card { background: var(--glass); }
+    .panel-slot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+    .panel-slot .panel { display: contents; }
+    .panel-slot .panel__note { grid-column: 1 / -1; }
+    .qa { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .hero { padding-top: 30px; }
+  }
+  /* Mobile (<720px): stacked layout, cards scroll horizontally, panel stacks. */
+  @media (max-width: 719px) {
+    .main-inner { padding: 0 16px 20px; }
+    .composer { padding: 10px 12px 8px; }
+    .hero { padding: 24px 0 18px; }
+    .hero::before, .hero::after { inset: -60px -16px -30px; }
+    .hero__title { font-size: 34px; }
+    .hero__sub { font-size: 15px; }
+    .qa {
+      display: flex; overflow-x: auto; gap: 10px; margin: 0 -16px; padding: 2px 16px 10px;
+      scroll-snap-type: x mandatory; scrollbar-width: none;
+    }
+    .qa::-webkit-scrollbar { display: none; }
+    .qa > li { flex: 0 0 158px; scroll-snap-align: start; }
+    .qa-card { min-height: 150px; }
+    .qa-card:hover { transform: none; }
+    .panel-slot { grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
+    .bubble-user { max-width: 86%; }
+    .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+    .chips::-webkit-scrollbar { display: none; }
+    .composer__meta { padding-top: 8px; }
+    .map-head { padding: 10px 12px; }
+    .map-head h2 { flex: 1 0 100%; margin: 0 0 6px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .main-scroll { scroll-behavior: auto; }
+    .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
+    .send:not(:disabled):active { transform: none; }
+    .qa-card, .qa-card:hover { transform: none; transition: none; }
+    .map-pin__dot { animation: none; }
+    .sidebar, .scrim, .skeleton { transition: none; animation: none; }
+  }
+</style>
 </head>
 <body>
-  <header class="topbar" id="topbar">
-    <button type="button" class="icon-btn" id="menuBtn" aria-label="Open sidebar" aria-controls="drawer" aria-expanded="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
-    </button>
-    <span class="topbar__name">Brentwood</span>
-  </header>
-  <div class="scrim" id="scrim"></div>
-  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Navigation and upcoming school events" inert>
-    <div class="drawer__brand">
-      <span class="drawer__title">Brentwood</span>
-      <button type="button" class="icon-btn" id="closeDrawer" aria-label="Close sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
+  <a class="skip-link" href="#input">Skip to chat</a>
+
+  <div class="shell" id="shell">
+    <!-- Tablet / mobile top bar -->
+    <header class="topbar">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
-    </div>
-    <button type="button" class="drawer-item is-active" id="navChat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span>Chat</span>
-    </button>
-    <button type="button" class="drawer-item" id="navMap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
-      <span>Campus map</span>
-    </button>
-    <div class="drawer-divider"></div>
-    <section aria-labelledby="upcomingHeading">
-      <h2 class="sidebar-heading" id="upcomingHeading">Upcoming events</h2>
-      <div class="event-list" id="upcomingEvents" aria-live="polite">
-        <p class="event-empty">Loading events…</p>
-      </div>
-    </section>
-    <div class="drawer-footer">Brentwood College School</div>
-  </aside>
-  <div class="app">
-    <!-- Thread -->
-    <main class="thread-scroll" id="scroll">
-      <div class="thread">
-        <!-- Welcome -->
-        <section class="hero" id="hero">
-          <div class="brand-mark"><img src="brentwood-logo.svg" alt="Brentwood College School" /></div>
-          <h1 class="hero__title">What can I help with?</h1>
-          <div class="starter-grid" aria-label="Common questions">
-            <button type="button" class="starter-card" data-prompt="What is for lunch today?">
-              <span class="starter-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M4 3v5a3 3 0 0 0 6 0V3M20 3c-4 1-5 5-5 9h5V3Zm0 9v9"/></svg>Food</span>
-              <span class="starter-card__question">What’s for lunch today?</span>
-            </button>
-            <button type="button" class="starter-card" data-prompt="What is the block order today?">
-              <span class="starter-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6"/></svg>Block order</span>
-              <span class="starter-card__question">What’s my day looking like?</span>
-            </button>
-            <button type="button" class="starter-card" id="locationShortcut">
-              <span class="starter-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>Location</span>
-              <span class="starter-card__question">Find a place on campus</span>
+      <button type="button" class="topbar__brand" data-view="home" aria-label="Home">
+        <img class="topbar__crest" src="crest.png" alt="" />
+        <span class="topbar__title">Brentwood <strong>Assistant</strong></span>
+      </button>
+      <button type="button" class="home-btn" data-view="home" aria-label="Home">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+        <span>Home</span>
+      </button>
+    </header>
+    <div class="scrim" id="scrim"></div>
+
+    <!-- Sidebar (fixed on desktop, drawer below 1200px) -->
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <button type="button" class="brand" data-view="home" aria-label="Brentwood College School — home">
+        <img class="brand__logo" src="brentwood-logo-stacked.png" alt="Brentwood College School" />
+      </button>
+      <nav aria-label="Sections">
+        <ul class="nav" id="nav">
+          <li><button type="button" class="nav-item is-active" data-view="home" aria-current="page">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+            <span>Home</span></button></li>
+          <li><button type="button" class="nav-item" data-view="ask">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Ask</span></button></li>
+          <li><button type="button" class="nav-item" data-view="map">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V8l4-4 4 4 4-4 4 4v13"/><path d="M4 21h16"/><path d="M10 21v-5h4v5"/><path d="M8 12h.01M16 12h.01"/></svg>
+            <span>Campus</span></button></li>
+          <li><button type="button" class="nav-item" data-fill="What courses can I take at Brentwood?">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8 12 3l10 5-10 5z"/><path d="M6 10.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-5.5"/><path d="M22 8v6"/></svg>
+            <span>Academics</span></button></li>
+          <li><button type="button" class="nav-item" data-fill="Tell me about clubs and student life at Brentwood.">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg>
+            <span>Student Life</span></button></li>
+          <li><button type="button" class="nav-item" data-fill="How do I book the Health Centre?">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6z"/><path d="M12 9v6M9 12h6"/></svg>
+            <span>Policies &amp; Support</span></button></li>
+          <li><button type="button" class="nav-item" data-fill="What events are coming up?" data-scroll="eventsCard">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h3M13 14h3M8 17h3"/></svg>
+            <span>Events</span></button></li>
+        </ul>
+      </nav>
+      <div class="sidebar__spacer"></div>
+      <hr class="sidebar__rule" />
+      <button type="button" class="nav-item" data-fill="Where can I get help?">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg>
+        <span>Help &amp; Feedback</span>
+      </button>
+    </aside>
+
+    <!-- Main column: home + chat -->
+    <div class="app" id="app">
+      <main class="main-scroll" id="scroll">
+        <div class="main-inner">
+          <div class="welcome" id="welcome">
+            <section class="hero" id="hero" aria-labelledby="heroTitle">
+              <p class="hero__kicker">WELCOME TO</p>
+              <h1 class="hero__title" id="heroTitle">Brentwood <em>Assistant</em></h1>
+              <p class="hero__sub"><strong>Your quick guide to life at Brentwood.</strong><br />Ask questions, find information, and get connected.</p>
+            </section>
+
+            <section aria-labelledby="qaTitle">
+              <h2 class="section-title sr-only" id="qaTitle">Quick actions</h2>
+              <ul class="qa">
+                <li><button type="button" class="qa-card" data-send="What's the block order today?">
+                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+                  <span class="qa-card__title">Today’s Block Order</span>
+                  <span class="qa-card__prompt">What’s the block order today?</span>
+                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </button></li>
+                <li><button type="button" class="qa-card" data-send="What's for lunch today?">
+                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3"/><path d="M9 10v11"/><path d="M17 3c-1.7 0-3 2.5-3 5.5 0 2 .8 3.5 2 4V21"/></svg></span>
+                  <span class="qa-card__title">Dining</span>
+                  <span class="qa-card__prompt">What’s for lunch today?</span>
+                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </button></li>
+                <!-- A map route already exists in this app, so this card opens it directly -->
+                <li><button type="button" class="qa-card" data-view="map">
+                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg></span>
+                  <span class="qa-card__title">Campus Map</span>
+                  <span class="qa-card__prompt">Where is the library?</span>
+                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </button></li>
+                <li><button type="button" class="qa-card" data-send="Tell me about clubs.">
+                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg></span>
+                  <span class="qa-card__title">Student Life</span>
+                  <span class="qa-card__prompt">Tell me about clubs.</span>
+                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </button></li>
+                <li><button type="button" class="qa-card" data-send="How do I book the Health Centre?">
+                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg></span>
+                  <span class="qa-card__title">Policies &amp; Support</span>
+                  <span class="qa-card__prompt">How do I book the Health Centre?</span>
+                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </button></li>
+              </ul>
+            </section>
+
+            <!-- Below 1200px the info panel is moved here by JS -->
+            <div class="panel-slot" id="panelSlot"></div>
+          </div>
+
+          <div class="thread">
+            <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Composer -->
+      <div class="composer-dock">
+        <form class="composer" id="form">
+          <div class="composer__field">
+            <label for="input" class="sr-only">Ask Brentwood Assistant</label>
+            <textarea id="input" rows="1" maxlength="500" placeholder="Ask me anything about Brentwood..." aria-describedby="counter"></textarea>
+            <button class="send" id="send" type="submit" aria-label="Send" disabled>
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
             </button>
           </div>
-        </section>
-
-        <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
+          <div class="composer__meta">
+            <div class="chips" aria-label="Suggested questions">
+              <button type="button" class="chip" data-send="What's the block order today?">What’s the block order today?</button>
+              <button type="button" class="chip" data-send="What events are coming up?">What events are coming up?</button>
+              <button type="button" class="chip" data-send="How do I join a club?">How do I join a club?</button>
+              <button type="button" class="chip" data-send="Where can I get help?">Where can I get help?</button>
+            </div>
+            <span class="counter" id="counter" aria-live="off" hidden>0/500</span>
+          </div>
+        </form>
       </div>
-    </main>
-
-    <!-- Composer -->
-    <div class="composer-dock">
-      <form class="composer" id="form">
-        <div class="composer__field">
-          <label for="input" class="sr-only">Message Brentwood Assistant</label>
-          <textarea id="input" rows="1" maxlength="500" placeholder="Ask anything about Brentwood" aria-describedby="counter"></textarea>
-          <button class="send" id="send" type="submit" aria-label="Send" disabled>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
-            </svg>
-          </button>
-        </div>
-        <div class="composer__meta">
-          <span class="composer__hint">Enter to send &middot; Shift+Enter for a new line</span>
-          <span class="counter" id="counter" aria-live="off">0/500</span>
-        </div>
-      </form>
     </div>
+
+    <!-- Campus map view (shares the main column with the chat) -->
+    <section class="map-view" id="mapView" hidden aria-label="Campus map">
+      <div class="map-head">
+        <h2>Campus Map</h2>
+        <label for="mapSearch" class="sr-only">Search a building</label>
+        <input id="mapSearch" type="search" placeholder="Search a building&hellip;" autocomplete="off" spellcheck="false" />
+        <span class="map-status" id="mapStatus" aria-live="polite"></span>
+      </div>
+      <div class="map-stage">
+        <div class="map-canvas">
+          <img src="campus-map.png" alt="Brentwood College School campus map" draggable="false" />
+          <div class="map-pin" id="mapPin" hidden>
+            <span class="map-pin__dot"></span>
+            <span class="map-pin__label" id="mapPinLabel"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right information panel (desktop) / stacked cards (tablet, mobile) -->
+    <aside class="panel" id="panel" aria-label="School information">
+      <section class="card" aria-labelledby="popTitle">
+        <div class="card__head"><h2 class="card__title" id="popTitle">Popular Questions</h2></div>
+        <!-- Each item sends a prompt the backend can answer from its own data
+             (school knowledge, dorm sign-ins, afternoon rules, official calendar). -->
+        <ul class="linklist">
+          <li><button type="button" data-send="How do I join a club?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>How to join a club</button></li>
+          <li><button type="button" data-send="Who are the houseparents for each house?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>House contact information</button></li>
+          <li><button type="button" data-send="What time is sign-in tonight?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Sign-in times</button></li>
+          <li><button type="button" data-send="Is tomorrow an art or sport day?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Art or sport day</button></li>
+          <li><button type="button" data-send="When is the next school break?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Academic calendar</button></li>
+        </ul>
+      </section>
+
+      <section class="card" id="eventsCard" aria-labelledby="evTitle">
+        <div class="card__head">
+          <h2 class="card__title" id="evTitle">Upcoming Events</h2>
+        </div>
+        <ul class="events" id="events" aria-busy="true">
+          <li class="skeleton" aria-hidden="true"></li>
+          <li class="skeleton" aria-hidden="true"></li>
+        </ul>
+        <a class="btn-outline" id="calendarLink" href="https://www.brentwood.ca/calendar/" target="_blank" rel="noopener noreferrer">View Full Calendar</a>
+      </section>
+      <p class="panel__note">Information is drawn from <a href="https://www.brentwood.ca/" target="_blank" rel="noopener noreferrer">brentwood.ca</a> and school feeds. Check official pages for anything time-sensitive.</p>
+    </aside>
   </div>
-
-  <!-- Campus map view -->
-  <section class="map-view" id="mapView" hidden aria-label="Campus map">
-    <div class="map-head">
-      <label for="mapSearch" class="sr-only">Search a building</label>
-      <input id="mapSearch" type="search" placeholder="Search a building&hellip;" autocomplete="off" spellcheck="false" />
-      <span class="map-status" id="mapStatus" aria-live="polite"></span>
-    </div>
-    <div class="map-stage">
-      <div class="map-canvas">
-        <img src="campus-map.png" alt="Brentwood College School campus map" draggable="false" />
-        <div class="map-pin" id="mapPin" hidden>
-          <span class="map-pin__dot"></span>
-          <span class="map-pin__label" id="mapPinLabel"></span>
-        </div>
-      </div>
-    </div>
-  </section>
 
 <script>
   // ============================================================
-  // API: Flask serves @app.route("/chat", POST). Behind nginx that
-  // proxies "/api", change to "/api/chat". POST {message,memory}->{reply}
+  // API: Flask serves @app.route("/chat", POST) and GET /api/upcoming-events
+  // (public school-calendar highlights). Behind nginx that proxies "/api",
+  // change API_ENDPOINT to "/api/chat".
+  // POST {message,memory}->{reply}
   // ============================================================
   const API_ENDPOINT = "/chat";
+  const EVENTS_ENDPOINT = "/api/upcoming-events";
+  const CALENDAR_URL = "https://www.brentwood.ca/calendar/";
   const MAX_CHARS = 500;
+  const SHOW_COUNTER_AT = 400;
   const WARN_AT = 450;
   const REQUEST_TIMEOUT_MS = 18000;
+  const OFFICIAL_SITE = "https://www.brentwood.ca/";
 
   const conversation = []; // { role:"user"|"bot", text } — memory only, no localStorage
 
-  const appEl     = document.querySelector(".app");
-  const scrollEl  = document.getElementById("scroll");
-  const heroEl    = document.getElementById("hero");
-  const logEl     = document.getElementById("log");
-  const formEl    = document.getElementById("form");
-  const inputEl   = document.getElementById("input");
-  const sendEl    = document.getElementById("send");
-  const counterEl = document.getElementById("counter");
-  const dockEl    = document.querySelector(".composer-dock");
+  const $ = (id) => document.getElementById(id);
+  const shellEl   = $("shell");
+  const appEl     = $("app");
+  const scrollEl  = $("scroll");
+  const welcomeEl = $("welcome");
+  const logEl     = $("log");
+  const formEl    = $("form");
+  const inputEl   = $("input");
+  const sendEl    = $("send");
+  const counterEl = $("counter");
+  const sidebarEl = $("sidebar");
+  const menuBtn   = $("menuBtn");
+  const scrimEl   = $("scrim");
+  const mapViewEl = $("mapView");
+  const panelEl   = $("panel");
+  const panelSlot = $("panelSlot");
 
   let inFlight = false;
 
-  const ICON_COPY ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
-  const ICON_RETRY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+  const ICON_COPY  = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  const ICON_RETRY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+  const ICON_CLOCK = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
   // ---------------- Composer behavior ----------------
   function autoGrow() { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px"; }
   function updateCounter() {
     const n = inputEl.value.length;
     counterEl.textContent = n + "/" + MAX_CHARS;
+    counterEl.hidden = n < SHOW_COUNTER_AT;
     counterEl.classList.toggle("is-warn", n >= WARN_AT);
   }
   function refreshSendState() { sendEl.disabled = inputEl.value.trim().length === 0 || inFlight; }
@@ -150,7 +714,7 @@
     autoGrow(); updateCounter(); refreshSendState();
   });
   inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); formEl.requestSubmit(); }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); formEl.requestSubmit(); }
   });
   formEl.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -158,8 +722,8 @@
     if (!text || inFlight) return;
     sendMessage(text);
   });
+
   // ---------------- Rendering (textContent only for model output) ----------------
-  function hideHero() { heroEl.classList.add("is-hidden"); appEl.classList.remove("app--welcome"); }
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -183,8 +747,12 @@
     turn.className = "turn turn--bot";
     const col = document.createElement("div");
     col.className = "bot-col";
+    const mark = document.createElement("div");
+    mark.className = "bot-mark";
+    mark.innerHTML = '<img src="crest.png" alt="" /><span>Brentwood Assistant</span>';
     const bubble = document.createElement("div");
     bubble.className = "bubble bubble-bot";
+    col.appendChild(mark);
     col.appendChild(bubble);
     turn.appendChild(col);
     logEl.appendChild(turn);
@@ -200,7 +768,7 @@
     scrollToBottom();
   }
 
-  // Open menu/search links in a new tab so a student never loses the chat.
+  // Open links from replies in a new tab so a student never loses the chat.
   if (window.DOMPurify) {
     DOMPurify.addHook("afterSanitizeAttributes", function (node) {
       if (node.tagName === "A" && node.getAttribute("href")) {
@@ -217,13 +785,13 @@
       if (!window.marked || !window.DOMPurify) throw new Error("md libs unavailable");
       el.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true }));
     } catch (e) {
-      el.style.whiteSpace = "pre-wrap"; // preserve newlines without markdown
+      el.style.whiteSpace = "pre-wrap";
       el.textContent = text;
     }
   }
 
   function renderReply(bubble, col, text) {
-    renderRichText(bubble, text); // sanitized markdown, falls back to plain text
+    renderRichText(bubble, text);
     const actions = document.createElement("div");
     actions.className = "bot-actions";
     const copyBtn = document.createElement("button");
@@ -241,7 +809,15 @@
   }
 
   function renderError(bubble, col, lastUserText) {
-    bubble.textContent = "Sorry, I couldn’t reach the server. Please try again.";
+    bubble.innerHTML = "";
+    const note = document.createElement("p");
+    note.className = "error-note";
+    note.append("I couldn’t find that information. Try rephrasing your question or check the ");
+    const a = document.createElement("a");
+    a.href = OFFICIAL_SITE; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.textContent = "official school source";
+    note.append(a, ".");
+    bubble.appendChild(note);
     const retry = document.createElement("button");
     retry.type = "button"; retry.className = "retry";
     retry.innerHTML = ICON_RETRY + "<span>Try again</span>";
@@ -268,8 +844,8 @@
 
   // ---------------- Send flow ----------------
   function sendMessage(text) {
-    if (inFlight || !text.trim()) return;
-    hideHero();
+    showView("chat");
+    setWelcome(false);
     appendUser(text);
     conversation.push({ role: "user", text });
     inputEl.value = ""; autoGrow(); updateCounter();
@@ -323,132 +899,148 @@
     vv.addEventListener("scroll", fitToViewport);
   }
 
-  // Keep welcome centered as composer grows
-  if (window.ResizeObserver && dockEl) {
-    const ro = new ResizeObserver((entries) => {
-      for (const e of entries) document.documentElement.style.setProperty("--dock-h", Math.round(e.contentRect.height) + "px");
+  // ---------------- Views: home / ask / chat / map ----------------
+  const navButtons = Array.from(sidebarEl.querySelectorAll(".nav-item[data-view]"));
+  function setActiveNav(view) {
+    navButtons.forEach(b => {
+      const on = b.dataset.view === view;
+      b.classList.toggle("is-active", on);
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
-    ro.observe(dockEl);
   }
-
-  // ---------------- Drawer view switching ----------------
-  const menuBtn    = document.getElementById("menuBtn");
-  const drawerEl   = document.getElementById("drawer");
-  const scrimEl    = document.getElementById("scrim");
-  const navChatBtn = document.getElementById("navChat");
-  const navMapBtn  = document.getElementById("navMap");
-  const mapViewEl  = document.getElementById("mapView");
-  const closeDrawerBtn = document.getElementById("closeDrawer");
-  const topbarEl = document.getElementById("topbar");
-
-  function setDrawer(open) {
-    drawerEl.inert = !open;
-    appEl.inert = open;
-    mapViewEl.inert = open;
-    topbarEl.inert = open;
-    drawerEl.classList.toggle("is-open", open);
-    scrimEl.classList.toggle("is-open", open);
-    menuBtn.setAttribute("aria-expanded", String(open));
-    if (open) {
-      closeDrawerBtn.focus();
-      loadUpcomingEvents();
-    } else {
-      menuBtn.focus();
-    }
+  function setWelcome(show) {
+    welcomeEl.classList.toggle("is-hidden", !show);
+    appEl.classList.toggle("is-welcome", show && conversation.length === 0);
+    if (!show && !mapViewEl.hidden) return;
+    setActiveNav(show ? "home" : "ask");
   }
-  menuBtn.addEventListener("click", () => setDrawer(!drawerEl.classList.contains("is-open")));
-  closeDrawerBtn.addEventListener("click", () => setDrawer(false));
-  scrimEl.addEventListener("click", () => setDrawer(false));
-  document.addEventListener("keydown", (e) => {
-    if (!drawerEl.classList.contains("is-open")) return;
-    if (e.key === "Escape") setDrawer(false);
-    if (e.key === "Tab") {
-      const buttons = [...drawerEl.querySelectorAll("button:not(:disabled)")];
-      const first = buttons[0], last = buttons[buttons.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
-  });
-
   function showView(view) {
     const isMap = view === "map";
     appEl.style.display = isMap ? "none" : "";
-    if (mapViewEl) mapViewEl.hidden = !isMap;
-    navChatBtn.classList.toggle("is-active", !isMap);
-    navMapBtn.classList.toggle("is-active", isMap);
+    mapViewEl.hidden = !isMap;
+    if (isMap) setActiveNav("map");
+    else setActiveNav(welcomeEl.classList.contains("is-hidden") ? "ask" : "home");
   }
-  navChatBtn.addEventListener("click", () => { showView("chat"); setDrawer(false); });
-  navMapBtn.addEventListener("click", () => { showView("map"); setDrawer(false); mapSearchEl.focus(); });
-  document.getElementById("locationShortcut").addEventListener("click", () => {
-    showView("map");
-    mapSearchEl.focus();
-  });
-
-  // ---------------- Welcome shortcuts ----------------
-  document.querySelectorAll(".starter-card[data-prompt]").forEach((card) => {
-    card.addEventListener("click", () => sendMessage(card.dataset.prompt));
-  });
-
-  // ---------------- Public school-event sidebar ----------------
-  const upcomingEventsEl = document.getElementById("upcomingEvents");
-  const eventDateFormatter = new Intl.DateTimeFormat("en-CA", {
-    weekday: "short", month: "short", day: "numeric", timeZone: "America/Vancouver"
-  });
-  function time12(value) {
-    if (!value) return "";
-    const [hour, minute] = value.split(":").map(Number);
-    const suffix = hour >= 12 ? "PM" : "AM";
-    return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${suffix}`;
+  function goHome() {
+    showView("chat");
+    setWelcome(true);
+    scrollEl.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
   }
-  function eventDate(dateKey) {
-    return eventDateFormatter.format(new Date(dateKey + "T12:00:00Z"));
+  function goAsk() {
+    showView("chat");
+    inputEl.focus({ preventScroll: true });
+    scrollToBottom();
   }
-  function renderUpcomingEvents(events) {
-    upcomingEventsEl.replaceChildren();
-    if (!events.length) {
-      const empty = document.createElement("p");
-      empty.className = "event-empty";
-      empty.textContent = "No upcoming events in the next two weeks.";
-      upcomingEventsEl.appendChild(empty);
-      return;
+  function fillPrompt(text, scrollTarget) {
+    showView("chat");
+    inputEl.value = text; autoGrow(); updateCounter(); refreshSendState();
+    if (scrollTarget) {
+      const t = $(scrollTarget);
+      if (t && panelSlot.contains(t)) { t.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" }); }
     }
-    events.forEach((event) => {
-      const row = document.createElement("article");
-      row.className = event.is_special ? "event-card event-card--featured" : "event-card";
-      const date = document.createElement("div");
-      date.className = "event-date";
-      const dateRange = event.end_date && event.end_date !== event.date
-        ? `${eventDate(event.date)} – ${eventDate(event.end_date)}` : eventDate(event.date);
-      date.textContent = `${event.is_special ? "Special event · " : ""}${dateRange}`;
-      const detail = document.createElement("div");
-      const title = document.createElement("div");
-      title.className = "event-title";
-      title.textContent = event.title;
-      const time = document.createElement("div");
-      time.className = "event-time";
-      time.textContent = event.all_day ? "All day"
-        : event.start_time && event.end_time ? `${time12(event.start_time)} – ${time12(event.end_time)}`
-        : event.start_time ? `From ${time12(event.start_time)}` : "Time to be confirmed";
-      detail.append(title, time);
-      row.append(date, detail);
-      upcomingEventsEl.appendChild(row);
-    });
+    inputEl.focus({ preventScroll: !!scrollTarget });
+    inputEl.setSelectionRange(text.length, text.length);
   }
-  async function loadUpcomingEvents() {
+
+  // One delegated handler: data-send sends now, data-fill drafts, data-view switches view.
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-send], [data-fill], [data-view]");
+    if (!el) return;
+    if (el.dataset.send !== undefined) { if (!inFlight) sendMessage(el.dataset.send); }
+    else if (el.dataset.fill !== undefined) fillPrompt(el.dataset.fill, el.dataset.scroll);
+    else if (el.dataset.view === "home") goHome();
+    else if (el.dataset.view === "ask") goAsk();
+    else if (el.dataset.view === "map") { showView("map"); if (el.classList.contains("qa-card")) mapSearchEl.focus({ preventScroll: true }); }
+    if (sidebarEl.classList.contains("is-open")) setDrawer(false, /*refocusMenu*/ false);
+  });
+
+  // ---------------- Drawer (sidebar below 1200px) ----------------
+  function setDrawer(open, refocusMenu = true) {
+    sidebarEl.classList.toggle("is-open", open);
+    scrimEl.classList.toggle("is-open", open);
+    menuBtn.setAttribute("aria-expanded", String(open));
+    menuBtn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    if (open) (sidebarEl.querySelector(".nav-item.is-active") || navButtons[0]).focus();
+    else if (refocusMenu) menuBtn.focus();
+  }
+  menuBtn.addEventListener("click", () => setDrawer(!sidebarEl.classList.contains("is-open")));
+  scrimEl.addEventListener("click", () => setDrawer(false));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && sidebarEl.classList.contains("is-open")) setDrawer(false);
+  });
+
+  // Desktop: panel lives in the grid's right column. Below 1200px it moves
+  // under the quick actions so the main column is the single scroller.
+  const desktopMQ = window.matchMedia("(min-width: 1200px)");
+  function placePanel() {
+    if (desktopMQ.matches) { if (panelEl.parentElement !== shellEl) shellEl.appendChild(panelEl); }
+    else if (panelEl.parentElement !== panelSlot) panelSlot.appendChild(panelEl);
+    if (desktopMQ.matches && sidebarEl.classList.contains("is-open")) setDrawer(false, false);
+  }
+  desktopMQ.addEventListener ? desktopMQ.addEventListener("change", placePanel) : desktopMQ.addListener(placePanel);
+  placePanel();
+
+  // ---------------- Upcoming events (GET /api/upcoming-events) ----------------
+  // Public school-calendar highlights + featured events + assembly/tutorial/
+  // advisory. Never personal MySchool events. Shape per item:
+  // { date, end_date, title, start_time, end_time, all_day, is_special }
+  const eventsEl = $("events");
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function fmtTime(hhmm) {
+    if (!hhmm) return "";
+    const [h, m] = hhmm.split(":").map(Number);
+    if (Number.isNaN(h)) return hhmm;
+    const ampm = h >= 12 ? "PM" : "AM";
+    return ((h % 12) || 12) + ":" + String(m || 0).padStart(2, "0") + " " + ampm;
+  }
+  function fmtShortDate(iso) {
+    const [, mm, dd] = iso.split("-").map(Number);
+    return MONTHS[(mm || 1) - 1] + " " + (dd || "");
+  }
+  function eventItem(ev) {
+    const li = document.createElement("li"); li.className = "event";
+    const [, mm, dd] = ev.date.split("-").map(Number);
+    const d = document.createElement("div"); d.className = "event__date";
+    d.innerHTML = '<span class="event__mon"></span><span class="event__day"></span>';
+    d.querySelector(".event__mon").textContent = MONTHS[(mm || 1) - 1];
+    d.querySelector(".event__day").textContent = dd || "";
+    const body = document.createElement("div");
+    const n = document.createElement("div"); n.className = "event__name"; n.textContent = ev.title;
+    const meta = document.createElement("div"); meta.className = "event__meta";
+    const multiDay = ev.end_date && ev.end_date !== ev.date;
+    let when = ev.all_day ? "All day" : [fmtTime(ev.start_time), fmtTime(ev.end_time)].filter(Boolean).join(" – ");
+    if (multiDay) when = (ev.all_day ? "Until " : when + " · until ") + fmtShortDate(ev.end_date);
+    if (when) { const s = document.createElement("span"); s.innerHTML = ICON_CLOCK; s.append(when); meta.appendChild(s); }
+    if (ev.is_special) { const s = document.createElement("span"); s.className = "event__tag"; s.textContent = "Special event"; meta.appendChild(s); }
+    body.append(n, meta); li.append(d, body);
+    return li;
+  }
+  function renderEvents(list) {
+    eventsEl.innerHTML = "";
+    eventsEl.setAttribute("aria-busy", "false");
+    if (!list.length) {
+      const p = document.createElement("li"); p.className = "events-empty";
+      p.textContent = "Nothing special in the next two weeks. See the full calendar for everything else.";
+      eventsEl.appendChild(p); return;
+    }
+    list.forEach(ev => eventsEl.appendChild(eventItem(ev)));
+  }
+  async function loadEvents() {
     try {
-      const response = await fetch("/api/upcoming-events", { headers: { "Accept": "application/json" } });
-      if (!response.ok) throw new Error("event feed unavailable");
-      const data = await response.json();
-      renderUpcomingEvents(Array.isArray(data.events) ? data.events : []);
-    } catch (_) {
-      upcomingEventsEl.replaceChildren();
-      const message = document.createElement("p");
-      message.className = "event-empty";
-      message.textContent = "Events are unavailable right now.";
-      upcomingEventsEl.appendChild(message);
+      const res = await fetch(EVENTS_ENDPOINT, { headers: { "Accept": "application/json" } });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      renderEvents(Array.isArray(data.events) ? data.events : []);
+    } catch (err) {
+      eventsEl.innerHTML = "";
+      eventsEl.setAttribute("aria-busy", "false");
+      const p = document.createElement("li"); p.className = "events-empty";
+      p.textContent = "Couldn’t load events right now. The full calendar is on the official site.";
+      eventsEl.appendChild(p);
     }
   }
-  loadUpcomingEvents();
+  $("calendarLink").href = CALENDAR_URL;
+  loadEvents();
 
   // ---------------- Campus map search ----------------
   // x/y are percentages of the map image (1536x1024).
@@ -481,10 +1073,10 @@
     { name: "Visitor Parking", aliases: ["parking"], x: 21.0, y: 51.0 },
   ];
 
-  const mapSearchEl = document.getElementById("mapSearch");
-  const mapStatusEl = document.getElementById("mapStatus");
-  const mapPinEl    = document.getElementById("mapPin");
-  const mapPinLabel = document.getElementById("mapPinLabel");
+  const mapSearchEl = $("mapSearch");
+  const mapStatusEl = $("mapStatus");
+  const mapPinEl    = $("mapPin");
+  const mapPinLabel = $("mapPinLabel");
 
   function findBuilding(query) {
     const q = query.trim().toLowerCase();
@@ -518,7 +1110,7 @@
     }
   });
 
-  appEl.classList.add("app--welcome");
+  appEl.classList.add("is-welcome");
   updateCounter(); refreshSendState(); autoGrow();
 </script>
 </body>
