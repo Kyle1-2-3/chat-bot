@@ -23,7 +23,7 @@ def _patch_llm(monkeypatch, effect):
 def test_classify_bad_json_logs_raw_text(monkeypatch, caplog):
     _patch_llm(monkeypatch, "sure! here are the meals you asked for")
     with caplog.at_level(logging.ERROR, logger="chatbot"):
-        out = appmod.classify_query("lunch today")
+        out = appmod.classify_query("who is the rogers houseparent")
     assert out == [appmod.UNKNOWN_REQUEST]
     assert any("unparseable" in r.message and "sure!" in r.message
                for r in caplog.records)
@@ -32,7 +32,7 @@ def test_classify_bad_json_logs_raw_text(monkeypatch, caplog):
 def test_classify_api_error_logs_status(monkeypatch, caplog):
     _patch_llm(monkeypatch, errors.APIError(429, {"error": {"message": "quota exceeded"}}))
     with caplog.at_level(logging.ERROR, logger="chatbot"):
-        out = appmod.classify_query("lunch today")
+        out = appmod.classify_query("who is the rogers houseparent")
     assert out == [appmod.UNKNOWN_REQUEST]
     assert any("API error" in r.message and "429" in r.message for r in caplog.records)
 
@@ -40,7 +40,7 @@ def test_classify_api_error_logs_status(monkeypatch, caplog):
 def test_classify_timeout_logged_as_timeout(monkeypatch, caplog):
     _patch_llm(monkeypatch, httpx.ReadTimeout("timed out"))
     with caplog.at_level(logging.ERROR, logger="chatbot"):
-        out = appmod.classify_query("lunch today")
+        out = appmod.classify_query("who is the rogers houseparent")
     assert out == [appmod.UNKNOWN_REQUEST]
     assert any("timed out" in r.message for r in caplog.records)
 
@@ -48,7 +48,7 @@ def test_classify_timeout_logged_as_timeout(monkeypatch, caplog):
 def test_classify_unexpected_error_still_falls_back(monkeypatch, caplog):
     _patch_llm(monkeypatch, RuntimeError("boom"))
     with caplog.at_level(logging.ERROR, logger="chatbot"):
-        out = appmod.classify_query("lunch today")
+        out = appmod.classify_query("who is the rogers houseparent")
     assert out == [appmod.UNKNOWN_REQUEST]
 
 

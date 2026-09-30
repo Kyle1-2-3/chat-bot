@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import calendar
 import json
 import logging
+import re
 import uuid
 import urllib.parse
 from contextlib import closing
@@ -458,9 +459,69 @@ def validate_request(obj: dict) -> dict:
             pass
     return validated
 
+# ---------------------------
+# Deterministic fast path for the home-page prompts
+# ---------------------------
+# The Gemini classifier handles everything, but the quick-action cards and
+# chips send a small fixed set of phrasings ("What's the block order today?",
+# "What's for lunch tomorrow?", "meal tmr"). Recognising those locally means
+# they never depend on an LLM round-trip (or fall to the UNKNOWN fallback when
+# that call fails) and cost one Gemini call instead of two. Anything with an
+# unrecognised word — grades, "and", Korean, follow-ups — goes to the LLM.
+_FAST_DAY_WORDS = {
+    "today": "TODAY", "todays": "TODAY", "tonight": "TODAY",
+    "tomorrow": "TOMORROW", "tomorrows": "TOMORROW", "tmr": "TOMORROW",
+    "tmrw": "TOMORROW", "tmw": "TOMORROW", "tomorow": "TOMORROW", "tommorow": "TOMORROW",
+    "monday": "MONDAY", "mon": "MONDAY", "tuesday": "TUESDAY", "tue": "TUESDAY", "tues": "TUESDAY",
+    "wednesday": "WEDNESDAY", "wed": "WEDNESDAY", "thursday": "THURSDAY", "thu": "THURSDAY",
+    "thurs": "THURSDAY", "friday": "FRIDAY", "fri": "FRIDAY", "saturday": "SATURDAY",
+    "sat": "SATURDAY", "sunday": "SUNDAY", "sun": "SUNDAY",
+}
+_FAST_FILLER = {
+    "what", "whats", "is", "are", "the", "a", "an", "do", "we", "i", "have", "for", "our",
+    "my", "on", "this", "show", "me", "tell", "give", "please", "pls", "hey", "hi", "hello",
+    "can", "you", "u", "happening", "going", "with", "be", "there", "at", "in", "school",
+    "s", "whole", "full", "up", "got", "get", "gonna", "will", "it", "of",
+}
+_FAST_BLOCK_WORDS = {"block", "blocks", "order", "schedule", "timetable", "classes"}
+_FAST_BLOCK_CORE = {"block", "blocks", "timetable", "schedule"}
+_FAST_MEAL_TYPES = {"breakfast": "BREAKFAST", "lunch": "LUNCH", "dinner": "DINNER", "brunch": "BRUNCH"}
+_FAST_MEALS_DAY = {"meal", "meals", "food", "menu", "menus", "eating", "eat"}
+
+def quick_classify(user_msg: str) -> list[dict] | None:
+    """Rule-based intent for simple block-order / meal questions; None otherwise."""
+    text = (user_msg or "").lower().replace("\u2019", "'").replace("'", "")
+    tokens = re.findall(r"[a-z]+", text)
+    if not tokens or len(tokens) > 12 or re.search(r"[^\x00-\x7f]|\d", text):
+        return None
+
+    day_refs = [_FAST_DAY_WORDS[t] for t in tokens if t in _FAST_DAY_WORDS]
+    if len(day_refs) > 1:
+        return None
+    day_ref = day_refs[0] if day_refs else "ANY"
+    words = [t for t in tokens if t not in _FAST_DAY_WORDS and t not in _FAST_FILLER]
+    if not words:
+        return None
+    wordset = set(words)
+
+    if wordset <= _FAST_BLOCK_WORDS and wordset & _FAST_BLOCK_CORE:
+        return [validate_request({"intent": "SCHEDULE", "day_ref": day_ref})]
+
+    meal_types = [_FAST_MEAL_TYPES[w] for w in words if w in _FAST_MEAL_TYPES]
+    if wordset <= (set(_FAST_MEAL_TYPES) | _FAST_MEALS_DAY) and len(set(meal_types)) <= 1:
+        if meal_types:
+            return [validate_request({"intent": "MEAL", "day_ref": day_ref, "meal_type": meal_types[0]})]
+        return [validate_request({"intent": "MEALS_DAY", "day_ref": day_ref})]
+    return None
+
 def classify_query(user_msg: str, memory: str = "") -> list[dict]:
     if not user_msg or not user_msg.strip():
         return [dict(UNKNOWN_REQUEST)]
+
+    fast = quick_classify(user_msg)
+    if fast:
+        logger.debug("classify_query: fast path -> %s", fast)
+        return fast
 
     memory = (memory or "").strip()[:1500]
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""

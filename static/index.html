@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark" />
 <meta name="description" content="Brentwood Assistant — your quick guide to life at Brentwood College School." />
 <title>Brentwood Assistant</title>
-<link rel="icon" href="crest.svg" type="image/svg+xml" />
+<link rel="icon" href="crest.png" type="image/png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -466,7 +466,7 @@
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
-      <img class="topbar__crest" src="crest.svg" alt="" />
+      <img class="topbar__crest" src="crest.png" alt="" />
       <span class="topbar__title">Brentwood <strong>Assistant</strong></span>
     </header>
     <div class="scrim" id="scrim"></div>
@@ -474,8 +474,7 @@
     <!-- Sidebar (fixed on desktop, drawer below 1200px) -->
     <aside class="sidebar" id="sidebar" aria-label="Main navigation">
       <a class="brand" href="/" aria-label="Brentwood College School — home">
-        <!-- crest.svg is a labelled placeholder; swap in the official crest with the same filename -->
-        <img class="brand__crest" src="crest.svg" alt="" />
+        <img class="brand__crest" src="crest.png" alt="" />
         <span><span class="brand__name">Brentwood</span><span class="brand__sub">College School</span></span>
       </a>
       <nav aria-label="Sections">
@@ -525,16 +524,16 @@
             <section aria-labelledby="qaTitle">
               <h2 class="section-title sr-only" id="qaTitle">Quick actions</h2>
               <ul class="qa">
-                <li><button type="button" class="qa-card" data-send="What's my schedule today?">
+                <li><button type="button" class="qa-card" data-send="What's the block order today?">
                   <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
-                  <span class="qa-card__title">Today’s Schedule</span>
-                  <span class="qa-card__prompt">What’s my schedule today?</span>
+                  <span class="qa-card__title">Today’s Block Order</span>
+                  <span class="qa-card__prompt">What’s the block order today?</span>
                   <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button></li>
-                <li><button type="button" class="qa-card" data-send="What's for lunch?">
+                <li><button type="button" class="qa-card" data-send="What's for lunch today?">
                   <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3"/><path d="M9 10v11"/><path d="M17 3c-1.7 0-3 2.5-3 5.5 0 2 .8 3.5 2 4V21"/></svg></span>
                   <span class="qa-card__title">Dining</span>
-                  <span class="qa-card__prompt">What’s for lunch?</span>
+                  <span class="qa-card__prompt">What’s for lunch today?</span>
                   <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button></li>
                 <!-- A map route already exists in this app, so this card opens it directly -->
@@ -581,7 +580,7 @@
           </div>
           <div class="composer__meta">
             <div class="chips" aria-label="Suggested questions">
-              <button type="button" class="chip" data-send="What's my schedule today?">What’s my schedule today?</button>
+              <button type="button" class="chip" data-send="What's the block order today?">What’s the block order today?</button>
               <button type="button" class="chip" data-send="What events are coming up?">What events are coming up?</button>
               <button type="button" class="chip" data-send="How do I join a club?">How do I join a club?</button>
               <button type="button" class="chip" data-send="Where can I get help?">Where can I get help?</button>
@@ -615,12 +614,14 @@
     <aside class="panel" id="panel" aria-label="School information">
       <section class="card" aria-labelledby="popTitle">
         <div class="card__head"><h2 class="card__title" id="popTitle">Popular Questions</h2></div>
+        <!-- Each item sends a prompt the backend can answer from its own data
+             (school knowledge, dorm sign-ins, afternoon rules, official calendar). -->
         <ul class="linklist">
-          <li><button type="button" data-send="Where can I find parking information?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Parking information</button></li>
           <li><button type="button" data-send="How do I join a club?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>How to join a club</button></li>
-          <li><button type="button" data-send="How can I contact my house?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>House contact information</button></li>
-          <li><button type="button" data-send="What are the Health Centre hours?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Health Centre hours</button></li>
-          <li><button type="button" data-send="When are the next school breaks?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Academic calendar</button></li>
+          <li><button type="button" data-send="Who are the houseparents for each house?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>House contact information</button></li>
+          <li><button type="button" data-send="What time is sign-in tonight?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Sign-in times</button></li>
+          <li><button type="button" data-send="Is tomorrow an art or sport day?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Art or sport day</button></li>
+          <li><button type="button" data-send="When is the next school break?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Academic calendar</button></li>
         </ul>
       </section>
 
@@ -739,7 +740,7 @@
     col.className = "bot-col";
     const mark = document.createElement("div");
     mark.className = "bot-mark";
-    mark.innerHTML = '<img src="crest.svg" alt="" /><span>Brentwood Assistant</span>';
+    mark.innerHTML = '<img src="crest.png" alt="" /><span>Brentwood Assistant</span>';
     const bubble = document.createElement("div");
     bubble.className = "bubble bubble-bot";
     col.appendChild(mark);
