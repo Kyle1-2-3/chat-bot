@@ -140,3 +140,40 @@ def test_refreshes_are_independent_and_failures_visible(monkeypatch):
     with pytest.raises(RuntimeError, match="Official leave calendar"):
         sync.main()
     assert calls == ["public", "personal"]
+
+
+def test_public_events_preserve_local_times_ranges_and_skip_private_recurring():
+    text = feed(event("3am Winter Break"),
+        event("Trip", "20260930", "20261003", uid="trip"),
+        event("Assembly", "20260930", "20261001", uid="assembly"),
+        event("Private meeting", "20260930", "20261001", uid="private", extra="CLASS:PRIVATE"),
+        event("Weekly club", "20260930", "20261001", uid="club", extra="RRULE:FREQ=WEEKLY"),
+        "BEGIN:VEVENT\nUID:cabaret\nDTSTART:20261009T000000Z\nDTEND:20261009T020000Z\n"
+        "SUMMARY:Canadian Thanksgiving Cabaret\nEND:VEVENT\n")
+    rows = {r["title"]: r for r in cal.parse_calendar(text, date(2026, 9, 29))["events"]}
+    assert set(rows) == {"Winter Break", "Trip", "Canadian Thanksgiving Cabaret"}
+    assert rows["Trip"]["end_date"] == "2026-10-02" and rows["Trip"]["all_day"]
+    assert rows["Canadian Thanksgiving Cabaret"] == {
+        "title": "Canadian Thanksgiving Cabaret", "date": "2026-10-08", "end_date": "2026-10-08",
+        "start_time": "17:00", "end_time": "19:00", "all_day": False}
+    assert rows["Winter Break"]["start_time"] == "03:00" and not rows["Winter Break"]["all_day"]
+
+
+def test_cancelled_public_event_is_removed_on_refresh(monkeypatch, tmp_path):
+    path = tmp_path / "snapshot.json"
+    active = event("Open House", "20260930", "20261001", uid="house")
+    monkeypatch.setattr(cal, "fetch_ical", lambda _: feed(event("3am Winter Break"), active))
+    assert any(r["title"] == "Open House" for r in cal.sync_calendar(date(2026, 9, 29), path)["events"])
+    cancelled = event("Open House", "20260930", "20261001", uid="house", extra="SEQUENCE:2\nSTATUS:CANCELLED")
+    monkeypatch.setattr(cal, "fetch_ical", lambda _: feed(event("3am Winter Break"), active, cancelled))
+    cal.sync_calendar(date(2026, 9, 29), path)
+    assert all(r["title"] != "Open House" for r in json.loads(path.read_text())["events"])
+
+
+def test_timed_event_keeps_exact_midnight_end():
+    text = feed(event("3am Winter Break"),
+        "BEGIN:VEVENT\nUID:evening\nDTSTART:20261001T053000Z\nDTEND:20261001T070000Z\n"
+        "SUMMARY:Evening event\nEND:VEVENT\n")
+    row = next(r for r in cal.parse_calendar(text, date(2026, 9, 29))["events"] if r["title"] == "Evening event")
+    assert (row["date"], row["start_time"], row["end_date"], row["end_time"]) == (
+        "2026-09-30", "22:30", "2026-10-01", "00:00")

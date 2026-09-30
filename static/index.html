@@ -347,10 +347,6 @@
   .linklist button:hover { color: var(--text); background: var(--glass-hover); }
   .linklist .icon { width: 15px; height: 15px; color: var(--red); }
 
-  .hours { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
-  .hours dt { color: var(--muted); }
-  .hours dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
-
   .events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
   .event { display: grid; grid-template-columns: 46px 1fr; gap: 12px; align-items: start; }
   .event__date { text-align: center; border-right: 2px solid var(--red); padding-right: 10px; line-height: 1.05; }
@@ -635,17 +631,6 @@
         </ul>
       </section>
 
-      <!-- Shown only when /api/home returns structured Health Centre hours.
-           Expected shape: { "hours": [{"days": "Mon – Fri", "time": "8:00 AM – 4:00 PM"}, ...],
-                             "source_url": "https://..." }  — not in the data yet. -->
-      <section class="card" id="hcCard" aria-labelledby="hcTitle" hidden>
-        <div class="card__head">
-          <h2 class="card__title" id="hcTitle">Health Centre Hours</h2>
-          <a class="card__link" id="hcSource" href="#" target="_blank" rel="noopener noreferrer" hidden>Source</a>
-        </div>
-        <dl class="hours" id="hcHours"></dl>
-      </section>
-
       <section class="card" id="eventsCard" aria-labelledby="evTitle">
         <div class="card__head">
           <h2 class="card__title" id="evTitle">Upcoming Events</h2>
@@ -662,12 +647,14 @@
 
 <script>
   // ============================================================
-  // API: Flask serves @app.route("/chat", POST) and GET /api/home.
-  // Behind nginx that proxies "/api", change CHAT to "/api/chat".
+  // API: Flask serves @app.route("/chat", POST) and GET /api/upcoming-events
+  // (public school-calendar highlights). Behind nginx that proxies "/api",
+  // change API_ENDPOINT to "/api/chat".
   // POST {message,memory}->{reply}
   // ============================================================
   const API_ENDPOINT = "/chat";
-  const HOME_ENDPOINT = "/api/home";
+  const EVENTS_ENDPOINT = "/api/upcoming-events";
+  const CALENDAR_URL = "https://www.brentwood.ca/calendar/";
   const MAX_CHARS = 500;
   const SHOW_COUNTER_AT = 400;
   const WARN_AT = 450;
@@ -698,7 +685,6 @@
   const ICON_COPY  = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
   const ICON_RETRY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
   const ICON_CLOCK = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
-  const ICON_PIN   = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
 
   // ---------------- Composer behavior ----------------
   function autoGrow() { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px"; }
@@ -981,7 +967,10 @@
   desktopMQ.addEventListener ? desktopMQ.addEventListener("change", placePanel) : desktopMQ.addListener(placePanel);
   placePanel();
 
-  // ---------------- Info panel data (GET /api/home) ----------------
+  // ---------------- Upcoming events (GET /api/upcoming-events) ----------------
+  // Public school-calendar highlights + featured events + assembly/tutorial/
+  // advisory. Never personal MySchool events. Shape per item:
+  // { date, end_date, title, start_time, end_time, all_day, is_special }
   const eventsEl = $("events");
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   function fmtTime(hhmm) {
@@ -991,63 +980,44 @@
     const ampm = h >= 12 ? "PM" : "AM";
     return ((h % 12) || 12) + ":" + String(m || 0).padStart(2, "0") + " " + ampm;
   }
-  function eventItem({ date, name, time, tag, link }) {
+  function fmtShortDate(iso) {
+    const [, mm, dd] = iso.split("-").map(Number);
+    return MONTHS[(mm || 1) - 1] + " " + (dd || "");
+  }
+  function eventItem(ev) {
     const li = document.createElement("li"); li.className = "event";
-    const [, mm, dd] = date.split("-").map(Number);
+    const [, mm, dd] = ev.date.split("-").map(Number);
     const d = document.createElement("div"); d.className = "event__date";
     d.innerHTML = '<span class="event__mon"></span><span class="event__day"></span>';
     d.querySelector(".event__mon").textContent = MONTHS[(mm || 1) - 1];
     d.querySelector(".event__day").textContent = dd || "";
     const body = document.createElement("div");
-    const n = document.createElement("div"); n.className = "event__name"; n.textContent = name;
+    const n = document.createElement("div"); n.className = "event__name"; n.textContent = ev.title;
     const meta = document.createElement("div"); meta.className = "event__meta";
-    if (time) { const s = document.createElement("span"); s.innerHTML = ICON_CLOCK; s.append(time); meta.appendChild(s); }
-    if (tag)  { const s = document.createElement("span"); s.className = "event__tag"; s.textContent = tag; meta.appendChild(s); }
-    if (link) { const a = document.createElement("a"); a.href = link; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "Official page"; meta.appendChild(a); }
+    const multiDay = ev.end_date && ev.end_date !== ev.date;
+    let when = ev.all_day ? "All day" : [fmtTime(ev.start_time), fmtTime(ev.end_time)].filter(Boolean).join(" – ");
+    if (multiDay) when = (ev.all_day ? "Until " : when + " · until ") + fmtShortDate(ev.end_date);
+    if (when) { const s = document.createElement("span"); s.innerHTML = ICON_CLOCK; s.append(when); meta.appendChild(s); }
+    if (ev.is_special) { const s = document.createElement("span"); s.className = "event__tag"; s.textContent = "Special event"; meta.appendChild(s); }
     body.append(n, meta); li.append(d, body);
     return li;
   }
-  function renderEvents(data) {
-    const items = [];
-    for (const e of data.events || []) {
-      const time = e.all_day ? "All day" : [fmtTime(e.start_time), fmtTime(e.end_time)].filter(Boolean).join(" – ");
-      items.push({ date: e.date, name: e.name, time });
-    }
-    for (const l of data.leaves || []) {
-      const time = l.start_time ? "Leave begins " + fmtTime(l.start_time) : "";
-      items.push({ date: l.start_date, name: l.name, time, tag: "School leave", link: l.source_url });
-    }
-    items.sort((a, b) => a.date.localeCompare(b.date));
+  function renderEvents(list) {
     eventsEl.innerHTML = "";
     eventsEl.setAttribute("aria-busy", "false");
-    if (!items.length) {
+    if (!list.length) {
       const p = document.createElement("li"); p.className = "events-empty";
-      p.textContent = "No upcoming events in the feed yet.";
+      p.textContent = "Nothing special in the next two weeks. See the full calendar for everything else.";
       eventsEl.appendChild(p); return;
     }
-    items.slice(0, 6).forEach(i => eventsEl.appendChild(eventItem(i)));
+    list.forEach(ev => eventsEl.appendChild(eventItem(ev)));
   }
-  function renderHealthCentre(hc) {
-    const card = $("hcCard");
-    if (!hc || !Array.isArray(hc.hours) || !hc.hours.length) { card.hidden = true; return; }
-    const dl = $("hcHours"); dl.innerHTML = "";
-    hc.hours.forEach(row => {
-      const dt = document.createElement("dt"); dt.textContent = row.days;
-      const dd = document.createElement("dd"); dd.textContent = row.time;
-      dl.append(dt, dd);
-    });
-    const src = $("hcSource");
-    if (hc.source_url) { src.href = hc.source_url; src.hidden = false; }
-    card.hidden = false;
-  }
-  async function loadHome() {
+  async function loadEvents() {
     try {
-      const res = await fetch(HOME_ENDPOINT, { headers: { "Accept": "application/json" } });
+      const res = await fetch(EVENTS_ENDPOINT, { headers: { "Accept": "application/json" } });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
-      if (data.calendar_url) $("calendarLink").href = data.calendar_url;
-      renderEvents(data);
-      renderHealthCentre(data.health_centre);
+      renderEvents(Array.isArray(data.events) ? data.events : []);
     } catch (err) {
       eventsEl.innerHTML = "";
       eventsEl.setAttribute("aria-busy", "false");
@@ -1056,7 +1026,8 @@
       eventsEl.appendChild(p);
     }
   }
-  loadHome();
+  $("calendarLink").href = CALENDAR_URL;
+  loadEvents();
 
   // ---------------- Campus map search ----------------
   // x/y are percentages of the map image (1536x1024).

@@ -19,6 +19,7 @@ import urllib.parse
 from contextlib import closing
 from school_knowledge import search_school_knowledge
 from school_calendar import calendar_result, leave_on
+from school_events import upcoming_events as prioritize_upcoming_events
 
 load_dotenv()
 
@@ -253,6 +254,30 @@ def fetch_next_event(item_type: str, from_date: str) -> list[dict]:
         ORDER BY sched_date, start_time
         LIMIT 1
     """, (item_type, from_date))
+
+
+def fetch_upcoming_school_events(now: datetime, limit: int = 3) -> list[dict]:
+    """Public highlights first, then common school events for the UI sidebar.
+
+    Deliberately exclude EVENT rows: those can come from a student's personal
+    calendar and do not belong in a globally visible interface.
+    """
+    rows = query("""
+        SELECT sched_date, item_type, start_time, end_time
+        FROM ScheduleTimeline
+        WHERE sched_date BETWEEN ? AND ?
+          AND item_type IN ('ASSEMBLY', 'TUTORIAL', 'ADVISORY')
+        ORDER BY sched_date, start_time, item_order
+    """, (now.date().isoformat(), (now.date() + timedelta(days=14)).isoformat()))
+    labels = {"ASSEMBLY": "Assembly", "TUTORIAL": "Tutorial", "ADVISORY": "Advisory"}
+    regular = [{"date": row["sched_date"], "title": labels[row["item_type"]],
+                "start_time": row["start_time"], "end_time": row["end_time"]} for row in rows]
+    return prioritize_upcoming_events(now, regular, limit)
+
+
+def current_school_time():
+    """Vancouver clock, retaining the existing FAKE_TODAY demo override."""
+    return datetime.combine(today(), datetime.now(SCHOOL_TZ).time(), SCHOOL_TZ)
 
 def fetch_grade_group(grade: int) -> str | None:
     rows = query("""
@@ -1057,55 +1082,22 @@ def chat():
 
     return jsonify({"reply": reply})
 
-HOME_EVENT_LIMIT = 5
-HOME_LEAVE_LIMIT = 3
-
-@app.route("/api/home", methods=["GET"])
-def home_feed():
-    """Read-only data for the home page's information panel.
-
-    events: upcoming special EVENT rows from ScheduleTimeline (synced from the
-            MySchool iCal feed; no location field exists in that data).
-    leaves: upcoming official school leaves from school_calendar (official site).
-    health_centre: no structured hours exist in the school data yet, so this
-            stays null and the UI hides the section until real data is wired in.
-    """
-    from_date = today()
-    try:
-        events = query("""
-            SELECT sched_date, event_name, start_time, end_time, all_day
-            FROM ScheduleTimeline
-            WHERE item_type = 'EVENT' AND sched_date >= ?
-            ORDER BY sched_date, start_time
-            LIMIT ?
-        """, (from_date.isoformat(), HOME_EVENT_LIMIT))
-    except sqlite3.Error:
-        logger.exception("home feed: could not read events")
-        events = []
-
-    cal = calendar_result(from_date)
-    leaves = [
-        {k: r.get(k) for k in ("name", "start_date", "start_time",
-                               "last_leave_date", "classes_resume_date", "source_url")}
-        for r in cal["leaves"] if r["days_until_start"] >= 0
-    ][:HOME_LEAVE_LIMIT]
-
-    return jsonify({
-        "today": from_date.isoformat(),
-        "events": [
-            {"date": e["sched_date"], "name": e["event_name"] or "Event",
-             "start_time": e["start_time"], "end_time": e["end_time"],
-             "all_day": bool(e["all_day"])}
-            for e in events
-        ],
-        "leaves": leaves,
-        "calendar_url": cal["source_url"],
-        "health_centre": None,
-    })
-
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
+
+
+@app.route("/upcoming-events")
+@app.route("/api/upcoming-events")
+def upcoming_events():
+    """Read-only public school-calendar highlights for the sidebar."""
+    try:
+        rows = fetch_upcoming_school_events(current_school_time())
+    except Exception:
+        logger.exception("Could not load upcoming school events")
+        return jsonify({"events": []}), 500
+
+    return jsonify({"events": rows})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True, port=5000)
