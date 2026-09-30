@@ -7,478 +7,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
 <meta name="color-scheme" content="dark" />
 <title>Brentwood Assistant</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="chat.css?v=20260929-dark" />
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-<style>
-  /* ============================================================
-     Friendly contemporary messenger — warm dark theme
-     ============================================================ */
-  :root {
-    /* Warm dark surfaces */
-    --bg:        #131314;   /* page */
-    --surface:   #232529;   /* bot bubble, input, cards */
-    --surface-2: #2e3036;   /* hover / secondary */
-    --header:    rgba(23, 24, 28, 0.82);
-
-    /* Accent (friendly messenger blue) */
-    --accent:    #3b82f6;
-    --accent-2:  #2f6fe0;
-    --accent-soft: rgba(59, 130, 246, 0.16);
-
-    /* Text */
-    --text:        #e8eaed;
-    --text-muted:  #a6abb4;
-    --text-dim:    #71757d;
-    --on-accent:   #ffffff;
-
-    /* Lines + depth */
-    --line: rgba(255, 255, 255, 0.08);
-    --shadow-bubble: 0 1px 2px rgba(0, 0, 0, 0.35);
-    --shadow-pop: 0 6px 24px rgba(0, 0, 0, 0.4);
-
-    /* Warning (counter only) */
-    --warn: #ff6b5e;
-
-    --font: "Google Sans Text", "Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-
-    --col: 680px;
-    --dock-h: 96px;
-  }
-
-  * { box-sizing: border-box; }
-  /* overflow-anchor off: when the keyboard opens/closes the browser would
-     otherwise re-anchor the document scroll and the conversation visibly
-     slides — keep the text where the reader left it instead */
-  html, body { margin: 0; padding: 0; height: 100%; overflow-anchor: none; }
-
-  body {
-    font-family: var(--font);
-    font-size: 16px;
-    line-height: 1.5;
-    color: var(--text);
-    background: var(--bg);
-    color-scheme: dark;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-
-  /* Fixed to the visible viewport (minus the on-screen keyboard, --kb, fed by
-     the VisualViewport JS): the document itself never scrolls, the thread
-     does. Keeps WebKit from panning the whole page when the keyboard opens. */
-  .app {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    height: calc(100dvh - var(--kb, 0px));
-  }
-
-  /* ---------------- Scrolling thread ---------------- */
-  .thread-scroll {
-    flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-anchor: none;
-    -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
-  }
-  .thread { width: 100%; max-width: var(--col); margin: 0 auto; padding: 20px 16px 28px; }
-
-  /* ---------------- Empty / welcome state ---------------- */
-  .hero {
-    min-height: calc(100dvh - 60px - var(--dock-h));
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; gap: 10px; padding: 24px 0;
-  }
-  .hero.is-hidden { display: none; }
-  .hero__title {
-    font-size: 42px; font-weight: 500; letter-spacing: -0.6px; margin: 0; color: var(--text);
-  }
-
-  /* Welcome layout: title + composer centered as one unit, soft glow behind */
-  .app--welcome { justify-content: center; }
-  .app--welcome::before {
-    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background: radial-gradient(120% 80% at 50% 42%,
-      rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 36%, rgba(19,19,20,0) 64%);
-  }
-  .app--welcome .thread-scroll { flex: 0 0 auto; overflow: visible; }
-  .app--welcome .thread { padding: 0 16px; }
-  .app--welcome .hero { min-height: 0; padding: 8px 0 26px; }
-  .app--welcome .composer-dock {
-    position: static; background: transparent; border-top: none;
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-  }
-
-  /* ---------------- Messages (user bubble · AI plain text) ---------------- */
-  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 24px; }
-  .turn--user { justify-content: flex-end; }
-  .turn--bot  { display: block; margin-bottom: 36px; }
-
-  .bubble {
-    max-width: 78%;
-    font-size: 17px; line-height: 1.6;
-    padding: 11px 18px; border-radius: 20px;
-    white-space: pre-wrap; overflow-wrap: anywhere;
-    box-shadow: var(--shadow-bubble);
-  }
-  .bubble-user {
-    background: #2a2b2d; color: var(--text);
-  }
-  /* AI response: no avatar, no bubble — airy full-width text (Gemini-style) */
-  .bubble-bot {
-    max-width: 100%;
-    background: none; color: var(--text);
-    padding: 2px 0; border-radius: 0; box-shadow: none;
-    line-height: 1.75; white-space: normal;
-  }
-  .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; gap: 4px; }
-  .bot-col .bubble { max-width: 100%; }
-
-  /* Rendered markdown inside an AI reply */
-  .bubble-bot > :first-child { margin-top: 0; }
-  .bubble-bot > :last-child { margin-bottom: 0; }
-  .bubble-bot p { margin: 0 0 14px; }
-  .bubble-bot h1, .bubble-bot h2, .bubble-bot h3 { font-weight: 500; line-height: 1.3; margin: 22px 0 10px; }
-  .bubble-bot h1 { font-size: 24px; }
-  .bubble-bot h2 { font-size: 20px; }
-  .bubble-bot h3 { font-size: 17px; }
-  .bubble-bot ul, .bubble-bot ol { margin: 0 0 14px; padding-left: 26px; }
-  .bubble-bot li { margin: 4px 0; }
-  .bubble-bot strong { font-weight: 700; }
-  .bubble-bot a { color: var(--accent); text-decoration: none; }
-  .bubble-bot a:hover { text-decoration: underline; }
-  .bubble-bot code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; background: var(--surface); padding: 1px 5px; border-radius: 5px; }
-  .bubble-bot pre { background: var(--surface); padding: 12px 14px; border-radius: 10px; overflow-x: auto; margin: 0 0 14px; }
-  .bubble-bot pre code { background: none; padding: 0; }
-
-  .bot-actions { padding-left: 0; height: 0; overflow: hidden; opacity: 0; transition: opacity 0.18s ease; }
-  .turn--bot:hover .bot-actions, .turn--bot:focus-within .bot-actions { height: auto; opacity: 1; }
-  .copy-btn {
-    font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text-muted);
-    background: transparent; border: none; padding: 2px 0; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 5px;
-  }
-  .copy-btn:hover { color: var(--text); }
-  .copy-btn:active { transform: scale(0.96); }
-  .copy-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
-  .copy-btn svg { width: 13px; height: 13px; }
-
-  /* Typing dots inside a bot bubble */
-  .typing { display: inline-flex; align-items: center; gap: 5px; padding: 3px 1px; }
-  .typing span { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); animation: bounce 1.2s infinite ease-in-out both; }
-  .typing span:nth-child(2) { animation-delay: 0.18s; }
-  .typing span:nth-child(3) { animation-delay: 0.36s; }
-  @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
-
-  /* Inline error + retry */
-  .retry {
-    margin-top: 2px; align-self: flex-start;
-    display: inline-flex; align-items: center; gap: 6px;
-    font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--accent);
-    background: var(--accent-soft); border: none; border-radius: 9999px;
-    padding: 8px 15px; cursor: pointer; min-height: 38px;
-  }
-  .retry:hover { background: rgba(59,130,246,0.24); }
-  .retry:active { transform: scale(0.96); }
-  .retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .retry svg { width: 15px; height: 15px; }
-
-  /* ---------------- Composer ---------------- */
-  .composer-dock {
-    position: sticky; bottom: 0; z-index: 20; flex: 0 0 auto;
-    background: var(--header);
-    -webkit-backdrop-filter: saturate(160%) blur(18px);
-    backdrop-filter: saturate(160%) blur(18px);
-    border-top: 1px solid var(--line);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .composer { width: 100%; max-width: var(--col); margin: 0 auto; padding: 12px 16px 8px; }
-  .composer__field {
-    display: flex; align-items: flex-end; gap: 8px;
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 24px; padding: 5px 5px 5px 18px;
-    box-shadow: var(--shadow-bubble);
-    transition: border-color 0.18s ease;
-  }
-  .composer__field:focus-within { border-color: rgba(255,255,255,0.22); }
-  textarea#input {
-    flex: 1 1 auto; resize: none; border: none; outline: none; background: transparent;
-    font-family: var(--font); font-size: 17px; line-height: 1.5; color: var(--text);
-    padding: 9px 0; max-height: 132px; overflow-y: auto;
-  }
-  textarea#input::placeholder { color: var(--text-dim); }
-
-  .send {
-    flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; border: none;
-    background: var(--accent); color: #fff;
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    box-shadow: var(--shadow-bubble);
-    transition: transform 0.12s ease, background 0.18s ease, opacity 0.18s ease;
-  }
-  .send svg { width: 19px; height: 19px; }
-  .send:not(:disabled):hover { background: var(--accent-2); }
-  .send:not(:disabled):active { transform: scale(0.94); }
-  .send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .send:disabled { background: var(--surface-2); color: var(--text-dim); cursor: default; box-shadow: none; }
-
-  .composer__meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 6px 0; min-height: 16px; }
-  .composer__hint { font-size: 12px; font-weight: 500; color: var(--text-dim); }
-  .counter { font-size: 12px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .counter.is-warn { color: var(--warn); }
-
-  /* ---------------- Menu button + drawer (view switcher) ---------------- */
-  .menu-btn {
-    position: fixed; z-index: 50;
-    top: calc(10px + env(safe-area-inset-top));
-    left: calc(12px + env(safe-area-inset-left));
-    width: 44px; height: 44px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    border: 1px solid var(--line); cursor: pointer;
-    background: var(--header); color: var(--text-muted);
-    -webkit-backdrop-filter: saturate(160%) blur(18px);
-    backdrop-filter: saturate(160%) blur(18px);
-  }
-  .menu-btn svg { width: 22px; height: 22px; }
-  .menu-btn:hover { background: var(--surface-2); color: var(--text); }
-  .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .scrim {
-    position: fixed; inset: 0; z-index: 60;
-    background: rgba(0,0,0,0.5);
-    opacity: 0; pointer-events: none;
-    transition: opacity 200ms ease;
-  }
-  .scrim.is-open { opacity: 1; pointer-events: auto; }
-  .drawer {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 70;
-    width: 260px; display: flex; flex-direction: column; gap: 4px;
-    padding: calc(14px + env(safe-area-inset-top)) 12px 14px calc(12px + env(safe-area-inset-left));
-    background: var(--surface); border-right: 1px solid var(--line);
-    transform: translateX(-100%); visibility: hidden;
-    transition: transform 200ms ease, visibility 0s linear 200ms;
-  }
-  .drawer.is-open {
-    transform: translateX(0); visibility: visible;
-    transition: transform 200ms ease;
-  }
-  .drawer__title { font-size: 15px; font-weight: 700; color: var(--text); padding: 10px 12px 14px; }
-  .drawer-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 11px 14px; border: none; border-radius: 9999px;
-    background: transparent; color: var(--text-muted); cursor: pointer; text-align: left;
-    font-family: var(--font); font-size: 14px; font-weight: 600;
-  }
-  .drawer-item svg { width: 20px; height: 20px; flex: 0 0 auto; }
-  .drawer-item:hover { background: var(--surface-2); color: var(--text); }
-  .drawer-item.is-active { background: var(--accent-soft); color: var(--accent); }
-  .drawer-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  /* ---------------- Map view ---------------- */
-  .map-view { height: calc(100dvh - var(--kb, 0px)); display: flex; flex-direction: column; }
-  /* author display:flex above beats the UA's [hidden]{display:none} — restore it */
-  .map-view[hidden] { display: none; }
-  .map-head {
-    flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px 12px calc(64px + env(safe-area-inset-left));
-    background: var(--header);
-    -webkit-backdrop-filter: saturate(160%) blur(18px);
-    backdrop-filter: saturate(160%) blur(18px);
-    border-bottom: 1px solid var(--line);
-  }
-  #mapSearch {
-    flex: 0 1 360px; min-width: 0;
-    font-family: var(--font); font-size: 16px; color: var(--text);
-    background: var(--surface); border: 1px solid var(--line); border-radius: 9999px;
-    padding: 9px 18px; outline: none;
-  }
-  #mapSearch:focus { border-color: rgba(255,255,255,0.22); }
-  #mapSearch::placeholder { color: var(--text-dim); }
-  .map-status { font-size: 13px; font-weight: 500; color: var(--text-dim); white-space: nowrap; }
-  .map-status.is-error { color: var(--warn); }
-  .map-stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
-  .map-canvas { position: relative; max-width: 1200px; min-width: 720px; margin: 0 auto; }
-  .map-canvas img { display: block; width: 100%; border-radius: 14px; user-select: none; -webkit-user-select: none; }
-  .map-pin { position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
-  .map-pin__dot {
-    display: block; width: 16px; height: 16px; box-sizing: border-box;
-    background: var(--accent); border: 3px solid #fff; border-radius: 50%;
-    box-shadow: 0 0 0 0 rgba(59,130,246,0.55);
-    animation: pin-pulse 1.6s infinite;
-  }
-  @keyframes pin-pulse {
-    0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.55); }
-    70%  { box-shadow: 0 0 0 18px rgba(59,130,246,0); }
-    100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
-  }
-  .map-pin__label {
-    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
-    padding: 3px 10px; border-radius: 9999px;
-    background: rgba(23,24,28,0.88); border: 1px solid var(--line);
-    color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap;
-  }
-
-  /* ---------------- Responsive ---------------- */
-  @media (max-width: 640px) {
-    .thread { padding: 16px 12px 22px; }
-    .hero__title { font-size: 34px; }
-    .bubble-user { max-width: 84%; }
-    .composer__hint { display: none; }
-    .composer__meta { justify-content: flex-end; }
-    /* Welcome screen: keep the composer pinned to the bottom — centered, it
-       rides up to mid-screen when the keyboard opens */
-    .app--welcome { justify-content: flex-start; }
-    .app--welcome .thread-scroll { flex: 1 1 auto; overflow-y: auto; }
-    .app--welcome .thread { padding: 16px 12px 22px; }
-    .app--welcome .hero { min-height: calc(100dvh - 60px - var(--dock-h)); padding: 24px 0; }
-    .app--welcome .composer-dock {
-      position: sticky; background: var(--header); border-top: 1px solid var(--line);
-      -webkit-backdrop-filter: saturate(160%) blur(18px);
-      backdrop-filter: saturate(160%) blur(18px);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .thread-scroll { scroll-behavior: auto; }
-    .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
-    .send:not(:disabled):active, .copy-btn:active, .retry:active { transform: none; }
-    .map-pin__dot { animation: none; }
-    .drawer, .scrim { transition: none; }
-  }
-  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-
-  /* ============================================================
-     Brentwood home — an editorial school desk, not a generic chat blank.
-     ============================================================ */
-  :root {
-    --red: #c8272c;
-    --red-dark: #961f25;
-    --ink: #1b1718;
-    --paper: #f7f1e7;
-    --paper-deep: #ebe0ce;
-    --forest: #193d36;
-    --sand: #d7c6a8;
-    --font: "DM Sans", sans-serif;
-    --display: "Fraunces", Georgia, serif;
-    --mono: "DM Mono", monospace;
-    --bg: var(--paper);
-    --surface: rgba(255, 252, 246, .9);
-    --surface-2: #eee4d5;
-    --header: rgba(247, 241, 231, .86);
-    --accent: var(--red);
-    --accent-2: var(--red-dark);
-    --accent-soft: rgba(200, 39, 44, .12);
-    --text: var(--ink);
-    --text-muted: #675e58;
-    --text-dim: #93877e;
-    --line: rgba(27, 23, 24, .14);
-    --shadow-bubble: 0 12px 28px rgba(62, 43, 27, .08);
-    --shadow-pop: 0 24px 70px rgba(41, 28, 20, .18);
-    --warn: #b42318;
-    --col: 760px;
-  }
-  body { background: var(--paper); color: var(--ink); color-scheme: light; }
-  body::before {
-    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
-    background:
-      radial-gradient(circle at 12% 8%, rgba(200,39,44,.12), transparent 24rem),
-      radial-gradient(circle at 88% 84%, rgba(25,61,54,.10), transparent 28rem),
-      repeating-linear-gradient(0deg, rgba(77,55,33,.025) 0 1px, transparent 1px 5px);
-  }
-  .app--welcome::before { background: none; }
-  .app--welcome .thread-scroll { flex: 1 1 auto; overflow-y: auto; }
-  .app--welcome .thread { padding: 32px 24px; }
-  .app--welcome .composer-dock {
-    position: sticky; background: var(--header); border-top: 1px solid var(--line);
-    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
-  }
-  .thread { max-width: var(--col); padding: 30px 24px 42px; }
-  .hero {
-    min-height: calc(100dvh - var(--dock-h)); justify-content: center; align-items: stretch;
-    gap: 0; padding: 24px 0 38px; text-align: left;
-  }
-  .welcome-kicker { font: 500 11px/1 var(--mono); color: var(--red); letter-spacing: .14em; text-transform: uppercase; margin: 0 0 18px; }
-  .welcome-head { display: grid; grid-template-columns: 94px 1fr; gap: 26px; align-items: center; margin-bottom: 46px; }
-  .brand-mark { width: 78px; height: 90px; overflow: hidden; position: relative; }
-  .brand-mark img { position: absolute; height: 90px; width: auto; max-width: none; left: 0; top: 0; }
-  .hero__title { font: 700 clamp(39px, 6.8vw, 68px)/.94 var(--display); letter-spacing: -.055em; color: var(--ink); max-width: 550px; }
-  .hero__title em { color: var(--red); font-style: italic; }
-  .hero__subtitle { grid-column: 2; font-size: 16px; line-height: 1.5; color: var(--text-muted); margin: -16px 0 0; max-width: 430px; }
-  .starter-label { display: flex; align-items: center; gap: 13px; margin-bottom: 17px; color: var(--text-muted); font: 500 12px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
-  .starter-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
-  .starter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
-  .starter-card {
-    min-height: 164px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
-    padding: 17px; text-align: left; color: var(--ink); background: rgba(255,252,246,.72);
-    border: 1px solid var(--line); border-radius: 5px; cursor: pointer; font-family: var(--font);
-    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-  }
-  .starter-card:hover { transform: translateY(-4px); border-color: rgba(200,39,44,.42); box-shadow: var(--shadow-bubble); }
-  .starter-card:focus-visible { outline: 3px solid rgba(200,39,44,.35); outline-offset: 3px; }
-  .starter-card__icon { width: 32px; height: 32px; color: var(--red); }
-  .starter-card__icon svg { width: 100%; height: 100%; }
-  .starter-card__name { font: 700 20px/1.05 var(--display); letter-spacing: -.03em; }
-  .starter-card__name, .starter-card__question { display: block; }
-  .starter-card__question { margin-top: 6px; color: var(--text-muted); font-size: 13px; line-height: 1.35; }
-  .starter-card__arrow { margin-top: 13px; color: var(--red); font-size: 17px; }
-  .bubble-user { background: var(--forest); color: white; }
-  .bubble-bot { color: var(--ink); }
-  .bubble-bot a { color: var(--red); }
-  .composer-dock { background: var(--header); border-top-color: var(--line); }
-  .composer__field { background: rgba(255,252,246,.9); border-color: var(--line); border-radius: 8px; box-shadow: none; }
-  .composer__field:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px rgba(200,39,44,.1); }
-  textarea#input { color: var(--ink); }
-  textarea#input::placeholder { color: var(--text-dim); }
-  .send { width: 40px; height: 40px; border-radius: 6px; background: var(--red); }
-  .send:not(:disabled):hover { background: var(--red-dark); }
-  .menu-btn { border-radius: 7px; background: var(--red); border-color: var(--red); color: white; box-shadow: 0 8px 18px rgba(150,31,37,.24); }
-  .menu-btn:hover { background: var(--red-dark); color: white; }
-  .scrim { background: rgba(20, 16, 14, .44); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
-  .drawer { width: min(352px, calc(100vw - 28px)); gap: 0; padding: calc(18px + env(safe-area-inset-top)) 18px 20px calc(18px + env(safe-area-inset-left)); background: #201b1c; border-right: 0; color: #fbf3e9; }
-  .drawer__brand { display: flex; align-items: center; gap: 11px; padding: 2px 8px 26px; }
-  .drawer__crest { width: 25px; height: 29px; overflow: hidden; position: relative; }
-  .drawer__crest img { position: absolute; height: 29px; width: auto; max-width: none; left: 0; top: 0; }
-  .drawer__eyebrow { color: #b9aaa0; font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
-  .drawer__title { color: #fff9f2; font: 600 18px/1.2 var(--display); padding: 3px 0 0; }
-  .drawer-item { border-radius: 6px; color: #c7bdb8; padding: 11px 12px; }
-  .drawer-item:hover { background: #332c2d; color: #fff; }
-  .drawer-item.is-active { background: rgba(200,39,44,.19); color: #ffb0ae; }
-  .drawer-divider { height: 1px; background: rgba(255,255,255,.13); margin: 23px 8px; }
-  .sidebar-heading { color: #fff9f2; margin: 0 8px 4px; font: 600 18px/1.2 var(--display); letter-spacing: -.025em; }
-  .sidebar-subheading { color: #a99c96; margin: 0 8px 15px; font-size: 12px; }
-  .event-list { display: flex; flex-direction: column; gap: 8px; }
-  .event-card { display: grid; grid-template-columns: 42px 1fr; gap: 10px; padding: 10px 8px; border-radius: 6px; }
-  .event-card:hover { background: #2a2425; }
-  .event-date { color: #ffaaa7; font: 500 10px/1.15 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding-top: 3px; }
-  .event-title { color: #f9f0e7; font-size: 14px; font-weight: 600; line-height: 1.2; }
-  .event-time { color: #a99c96; font-size: 12px; margin-top: 3px; }
-  .event-empty { color: #a99c96; padding: 8px; font-size: 13px; line-height: 1.45; }
-  .drawer-footer { margin-top: auto; padding: 20px 8px 0; color: #887c76; font: 10px/1.35 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
-  @media (max-width: 640px) {
-    .app--welcome .thread { padding: 18px 16px 22px; }
-    .hero { min-height: calc(100dvh - var(--dock-h)); padding: 15px 0 26px; }
-    .welcome-head { grid-template-columns: 64px 1fr; gap: 16px; margin-bottom: 31px; }
-    .brand-mark { width: 57px; height: 66px; }
-    .brand-mark img { height: 66px; }
-    .hero__title { font-size: clamp(37px, 11vw, 54px); }
-    .hero__subtitle { grid-column: 1 / -1; margin: -6px 0 0; font-size: 14px; }
-    .starter-grid { grid-template-columns: 1fr; gap: 8px; }
-    .starter-card { min-height: auto; display: grid; grid-template-columns: 32px 1fr 18px; column-gap: 13px; align-items: center; padding: 13px; }
-    .starter-card__icon { grid-row: 1 / span 2; }
-    .starter-card__name { font-size: 18px; }
-    .starter-card__question { margin: 3px 0 0; }
-    .starter-card__arrow { grid-column: 3; grid-row: 1 / span 2; margin: 0; }
-  }
-</style>
 </head>
 <body>
-  <button type="button" class="menu-btn" id="menuBtn" aria-label="Menu" aria-controls="drawer" aria-expanded="false">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-  </button>
+  <header class="topbar" id="topbar">
+    <button type="button" class="icon-btn" id="menuBtn" aria-label="Open sidebar" aria-controls="drawer" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
+    </button>
+    <span class="topbar__name">Brentwood</span>
+  </header>
   <div class="scrim" id="scrim"></div>
-  <aside class="drawer" id="drawer" aria-label="Navigation and upcoming school events">
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Navigation and upcoming school events" inert>
     <div class="drawer__brand">
-      <div class="drawer__crest"><img src="brentwood-logo.svg" alt="" /></div>
-      <div>
-        <div class="drawer__eyebrow">Brentwood College School</div>
-        <div class="drawer__title">Student desk</div>
-      </div>
+      <span class="drawer__title">Brentwood</span>
+      <button type="button" class="icon-btn" id="closeDrawer" aria-label="Close sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
+      </button>
     </div>
     <button type="button" class="drawer-item is-active" id="navChat">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -486,17 +32,16 @@
     </button>
     <button type="button" class="drawer-item" id="navMap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
-      <span>Map</span>
+      <span>Campus map</span>
     </button>
     <div class="drawer-divider"></div>
     <section aria-labelledby="upcomingHeading">
-      <h2 class="sidebar-heading" id="upcomingHeading">Upcoming school events</h2>
-      <p class="sidebar-subheading">Assembly, tutorial &amp; advisory</p>
+      <h2 class="sidebar-heading" id="upcomingHeading">Upcoming events</h2>
       <div class="event-list" id="upcomingEvents" aria-live="polite">
         <p class="event-empty">Loading events…</p>
       </div>
     </section>
-    <div class="drawer-footer">Where students choose to be</div>
+    <div class="drawer-footer">Brentwood College School</div>
   </aside>
   <div class="app">
     <!-- Thread -->
@@ -504,28 +49,20 @@
       <div class="thread">
         <!-- Welcome -->
         <section class="hero" id="hero">
-          <p class="welcome-kicker">Student assistant · 2026–27</p>
-          <div class="welcome-head">
-            <div class="brand-mark"><img src="brentwood-logo.svg" alt="Brentwood College School" /></div>
-            <h1 class="hero__title">School questions,<br /><em>sorted.</em></h1>
-            <p class="hero__subtitle">Meals, block order, campus locations, and the school calendar — all in one place.</p>
-          </div>
-          <div class="starter-label">What should we start with?</div>
+          <div class="brand-mark"><img src="brentwood-logo.svg" alt="Brentwood College School" /></div>
+          <h1 class="hero__title">What can I help with?</h1>
           <div class="starter-grid" aria-label="Common questions">
             <button type="button" class="starter-card" data-prompt="What is for lunch today?">
-              <span class="starter-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v8M5 3v5a3 3 0 0 0 6 0V3M8 11v10M16 3v18M13 3v6a3 3 0 0 0 6 0V3"/></svg></span>
-              <span><span class="starter-card__name">Food</span><span class="starter-card__question">What’s on the menu today?</span></span>
-              <span class="starter-card__arrow" aria-hidden="true">↗</span>
+              <span class="starter-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M4 3v5a3 3 0 0 0 6 0V3M20 3c-4 1-5 5-5 9h5V3Zm0 9v9"/></svg>Food</span>
+              <span class="starter-card__question">What’s for lunch today?</span>
             </button>
             <button type="button" class="starter-card" data-prompt="What is the block order today?">
-              <span class="starter-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6"/></svg></span>
-              <span><span class="starter-card__name">Block order</span><span class="starter-card__question">What does today look like?</span></span>
-              <span class="starter-card__arrow" aria-hidden="true">↗</span>
+              <span class="starter-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6"/></svg>Block order</span>
+              <span class="starter-card__question">What’s my day looking like?</span>
             </button>
-            <button type="button" class="starter-card" data-prompt="Where is Crooks Hall?">
-              <span class="starter-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
-              <span><span class="starter-card__name">Campus map</span><span class="starter-card__question">Where can I find a building?</span></span>
-              <span class="starter-card__arrow" aria-hidden="true">↗</span>
+            <button type="button" class="starter-card" id="locationShortcut">
+              <span class="starter-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>Location</span>
+              <span class="starter-card__question">Find a place on campus</span>
             </button>
           </div>
         </section>
@@ -539,7 +76,7 @@
       <form class="composer" id="form">
         <div class="composer__field">
           <label for="input" class="sr-only">Message Brentwood Assistant</label>
-          <textarea id="input" rows="1" maxlength="500" placeholder="Type a message&hellip;" aria-describedby="counter"></textarea>
+          <textarea id="input" rows="1" maxlength="500" placeholder="Ask anything about Brentwood" aria-describedby="counter"></textarea>
           <button class="send" id="send" type="submit" aria-label="Send" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
@@ -613,7 +150,7 @@
     autoGrow(); updateCounter(); refreshSendState();
   });
   inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); formEl.requestSubmit(); }
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); formEl.requestSubmit(); }
   });
   formEl.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -731,6 +268,7 @@
 
   // ---------------- Send flow ----------------
   function sendMessage(text) {
+    if (inFlight || !text.trim()) return;
     hideHero();
     appendUser(text);
     conversation.push({ role: "user", text });
@@ -800,21 +338,35 @@
   const navChatBtn = document.getElementById("navChat");
   const navMapBtn  = document.getElementById("navMap");
   const mapViewEl  = document.getElementById("mapView");
+  const closeDrawerBtn = document.getElementById("closeDrawer");
+  const topbarEl = document.getElementById("topbar");
 
   function setDrawer(open) {
+    drawerEl.inert = !open;
+    appEl.inert = open;
+    mapViewEl.inert = open;
+    topbarEl.inert = open;
     drawerEl.classList.toggle("is-open", open);
     scrimEl.classList.toggle("is-open", open);
     menuBtn.setAttribute("aria-expanded", String(open));
     if (open) {
-      (drawerEl.querySelector(".drawer-item.is-active") || navChatBtn).focus();
+      closeDrawerBtn.focus();
     } else {
       menuBtn.focus();
     }
   }
   menuBtn.addEventListener("click", () => setDrawer(!drawerEl.classList.contains("is-open")));
+  closeDrawerBtn.addEventListener("click", () => setDrawer(false));
   scrimEl.addEventListener("click", () => setDrawer(false));
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && drawerEl.classList.contains("is-open")) setDrawer(false);
+    if (!drawerEl.classList.contains("is-open")) return;
+    if (e.key === "Escape") setDrawer(false);
+    if (e.key === "Tab") {
+      const buttons = [...drawerEl.querySelectorAll("button:not(:disabled)")];
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
 
   function showView(view) {
@@ -825,7 +377,11 @@
     navMapBtn.classList.toggle("is-active", isMap);
   }
   navChatBtn.addEventListener("click", () => { showView("chat"); setDrawer(false); });
-  navMapBtn.addEventListener("click", () => { showView("map"); setDrawer(false); });
+  navMapBtn.addEventListener("click", () => { showView("map"); setDrawer(false); mapSearchEl.focus(); });
+  document.getElementById("locationShortcut").addEventListener("click", () => {
+    showView("map");
+    mapSearchEl.focus();
+  });
 
   // ---------------- Welcome shortcuts ----------------
   document.querySelectorAll(".starter-card[data-prompt]").forEach((card) => {
