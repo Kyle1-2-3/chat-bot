@@ -875,7 +875,7 @@
   }
   async function loadUpcomingEvents() {
     try {
-      const response = await fetch("/upcoming-events", { headers: { "Accept": "application/json" } });
+      const response = await fetch("/api/upcoming-events", { headers: { "Accept": "application/json" } });
       if (!response.ok) throw new Error("event feed unavailable");
       const data = await response.json();
       renderUpcomingEvents(Array.isArray(data.events) ? data.events : []);

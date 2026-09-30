@@ -40,3 +40,10 @@ def test_sidebar_omits_private_events_and_blocks(monkeypatch, tmp_path):
     make_db(tmp_path, monkeypatch)
     monkeypatch.setattr(appmod, "today", lambda: date(2026, 10, 3))
     assert appmod.app.test_client().get("/upcoming-events").get_json() == {"events": []}
+
+
+def test_sidebar_api_alias_matches_public_endpoint(monkeypatch, tmp_path):
+    make_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(appmod, "today", lambda: date(2026, 9, 29))
+    client = appmod.app.test_client()
+    assert client.get("/api/upcoming-events").get_json() == client.get("/upcoming-events").get_json()

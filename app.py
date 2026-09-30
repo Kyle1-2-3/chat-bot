@@ -1018,6 +1018,7 @@ def index():
 
 
 @app.route("/upcoming-events")
+@app.route("/api/upcoming-events")
 def upcoming_events():
     """Read-only, school-wide event data for the sidebar."""
     try:
