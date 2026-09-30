@@ -854,7 +854,7 @@ SPECIAL RULES:
   - Greet back and briefly say what the user can ask.
 - For LOCATION:
   - Tell the user every building can be found on the campus map: open it with the
-    Map button (left sidebar on desktop, bottom bar on mobile) and search the
+    Campus button (left sidebar on desktop, menu on mobile) and search the
     building name there.
   - Do NOT give walking directions and do NOT invent building locations.
 
@@ -894,8 +894,8 @@ def generate_raw_answer(user_msg: str, memory: str = "") -> str:
 # and skip the second Gemini call. Mixed messages still go through the LLM
 # (the "For LOCATION" rule above covers them).
 LOCATION_REPLY = (
-    "Every building is on the campus map 🙂 Open it with the Map button "
-    "(left sidebar on desktop, bottom bar on mobile) and search the "
+    "Every building is on the campus map 🙂 Open it with the Campus button "
+    "(left sidebar on desktop, menu on mobile) and search the "
     "building name there."
 )
 
@@ -995,6 +995,52 @@ def chat():
         reply = f"{SERVER_TAG} {reply}"
 
     return jsonify({"reply": reply})
+
+HOME_EVENT_LIMIT = 5
+HOME_LEAVE_LIMIT = 3
+
+@app.route("/api/home", methods=["GET"])
+def home_feed():
+    """Read-only data for the home page's information panel.
+
+    events: upcoming special EVENT rows from ScheduleTimeline (synced from the
+            MySchool iCal feed; no location field exists in that data).
+    leaves: upcoming official school leaves from school_calendar (official site).
+    health_centre: no structured hours exist in the school data yet, so this
+            stays null and the UI hides the section until real data is wired in.
+    """
+    from_date = today()
+    try:
+        events = query("""
+            SELECT sched_date, event_name, start_time, end_time, all_day
+            FROM ScheduleTimeline
+            WHERE item_type = 'EVENT' AND sched_date >= ?
+            ORDER BY sched_date, start_time
+            LIMIT ?
+        """, (from_date.isoformat(), HOME_EVENT_LIMIT))
+    except sqlite3.Error:
+        logger.exception("home feed: could not read events")
+        events = []
+
+    cal = calendar_result(from_date)
+    leaves = [
+        {k: r.get(k) for k in ("name", "start_date", "start_time",
+                               "last_leave_date", "classes_resume_date", "source_url")}
+        for r in cal["leaves"] if r["days_until_start"] >= 0
+    ][:HOME_LEAVE_LIMIT]
+
+    return jsonify({
+        "today": from_date.isoformat(),
+        "events": [
+            {"date": e["sched_date"], "name": e["event_name"] or "Event",
+             "start_time": e["start_time"], "end_time": e["end_time"],
+             "all_day": bool(e["all_day"])}
+            for e in events
+        ],
+        "leaves": leaves,
+        "calendar_url": cal["source_url"],
+        "health_centre": None,
+    })
 
 @app.route("/")
 def index():
