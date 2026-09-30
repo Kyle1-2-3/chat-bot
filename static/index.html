@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
 <meta name="color-scheme" content="dark" />
 <title>Brentwood Assistant</title>
-<link rel="stylesheet" href="chat.css?v=20260929-dark" />
+<link rel="stylesheet" href="chat.css?v=20260929-events" />
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 </head>
@@ -351,6 +351,7 @@
     menuBtn.setAttribute("aria-expanded", String(open));
     if (open) {
       closeDrawerBtn.focus();
+      loadUpcomingEvents();
     } else {
       menuBtn.focus();
     }
@@ -407,23 +408,27 @@
     if (!events.length) {
       const empty = document.createElement("p");
       empty.className = "event-empty";
-      empty.textContent = "No upcoming common events in the current schedule.";
+      empty.textContent = "No upcoming events in the next two weeks.";
       upcomingEventsEl.appendChild(empty);
       return;
     }
     events.forEach((event) => {
       const row = document.createElement("article");
-      row.className = "event-card";
+      row.className = event.is_special ? "event-card event-card--featured" : "event-card";
       const date = document.createElement("div");
       date.className = "event-date";
-      date.textContent = eventDate(event.date);
+      const dateRange = event.end_date && event.end_date !== event.date
+        ? `${eventDate(event.date)} – ${eventDate(event.end_date)}` : eventDate(event.date);
+      date.textContent = `${event.is_special ? "Special event · " : ""}${dateRange}`;
       const detail = document.createElement("div");
       const title = document.createElement("div");
       title.className = "event-title";
       title.textContent = event.title;
       const time = document.createElement("div");
       time.className = "event-time";
-      time.textContent = `${time12(event.start_time)} – ${time12(event.end_time)}`;
+      time.textContent = event.all_day ? "All day"
+        : event.start_time && event.end_time ? `${time12(event.start_time)} – ${time12(event.end_time)}`
+        : event.start_time ? `From ${time12(event.start_time)}` : "Time to be confirmed";
       detail.append(title, time);
       row.append(date, detail);
       upcomingEventsEl.appendChild(row);
