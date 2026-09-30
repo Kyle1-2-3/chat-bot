@@ -940,7 +940,7 @@ SPECIAL RULES:
   - Greet back and briefly say what the user can ask.
 - For LOCATION:
   - Tell the user every building can be found on the campus map: open it with the
-    Campus map button in the sidebar and search the
+    Campus button (left sidebar on desktop, menu on mobile) and search the
     building name there.
   - Do NOT give walking directions and do NOT invent building locations.
 
@@ -980,8 +980,8 @@ def generate_raw_answer(user_msg: str, memory: str = "") -> str:
 # and skip the second Gemini call. Mixed messages still go through the LLM
 # (the "For LOCATION" rule above covers them).
 LOCATION_REPLY = (
-    "Every building is on the campus map 🙂 Open it with the Campus map button "
-    "in the sidebar and search the "
+    "Every building is on the campus map 🙂 Open it with the Campus button "
+    "(left sidebar on desktop, menu on mobile) and search the "
     "building name there."
 )
 
