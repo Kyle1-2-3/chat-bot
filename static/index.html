@@ -6,57 +6,49 @@
      sticky composer lands on top of it (Android Chrome pans instead by default) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
 <meta name="color-scheme" content="dark" />
-<meta name="description" content="Brentwood Assistant — your quick guide to life at Brentwood College School." />
+<meta name="description" content="Brentwood Assistant — ask about block order, meals, sign-ins, clubs and school life at Brentwood College School." />
 <title>Brentwood Assistant</title>
 <link rel="icon" href="crest.png" type="image/png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <style>
   /* ============================================================
-     Brentwood Assistant — student information hub
-     Dark, institutional, Brentwood red accent.
-     Layout: [sidebar] [main: hero + quick actions + chat] [info panel]
+     Brentwood Assistant
+     Chat first. Dark, quiet surfaces; red only for the primary action,
+     the selected navigation item and links. Structure comes from spacing
+     and hairline dividers rather than boxes.
+     Layout: [sidebar] [intro + conversation + composer] [upcoming]
      ============================================================ */
   :root {
-    /* Base surfaces */
-    --bg:          #0e0e10;
-    --bg-2:        #141416;
-    --bg-3:        #1a1a1d;
-    --glass:       rgba(255, 255, 255, 0.045);
-    --glass-hover: rgba(255, 255, 255, 0.075);
-    --header:      rgba(14, 14, 16, 0.86);
+    --bg:      #0f0f11;
+    --bg-2:    #151517;
+    --bg-3:    #1c1c1f;
+    --hover:   rgba(255, 255, 255, 0.05);
+    --header:  rgba(15, 15, 17, 0.88);
 
-    /* Brentwood red */
     --red:       #c8102e;
-    --red-hover: #de1a3a;
-    --red-deep:  #6e0b1c;
-    --red-soft:  rgba(200, 16, 46, 0.14);
-    --red-tint:  rgba(200, 16, 46, 0.30);
+    --red-hover: #d9203d;
+    --red-soft:  rgba(200, 16, 46, 0.12);
+    --link:      #f08a99;
 
-    /* Text */
-    --text:      #f2f2f3;
-    --muted:     #a3a6ad;
-    --dim:       #6f7279;
-    --on-red:    #ffffff;
+    --text:  #ececee;
+    --muted: #9b9ea6;
+    --dim:   #6b6e75;
 
-    /* Lines + depth */
-    --line:        rgba(255, 255, 255, 0.09);
-    --line-strong: rgba(255, 255, 255, 0.18);
-    --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.35);
-    --shadow-md:   0 8px 24px rgba(0, 0, 0, 0.35);
+    --line:        rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
 
     --warn: #ff7a6e;
     --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-    --radius:    14px;
-    --radius-sm: 10px;
-    --sidebar-w: 248px;
-    --panel-w:   320px;
-    --thread-w:  760px;
-    --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--red);
+    --radius: 10px;
+    --sidebar-w: 220px;
+    --aside-w: 272px;
+    --content-w: 820px;
+    --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--line-strong);
   }
 
   * { box-sizing: border-box; }
@@ -69,16 +61,17 @@
     color: var(--text); background: var(--bg); color-scheme: dark;
     -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
-  button { font-family: inherit; }
+  button { font-family: inherit; font-size: inherit; }
   :focus-visible { outline: none; box-shadow: var(--focus); }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .skip-link {
     position: absolute; left: 12px; top: -48px; z-index: 100;
-    background: var(--red); color: var(--on-red); padding: 8px 14px; border-radius: 8px;
+    background: var(--red); color: #fff; padding: 8px 14px; border-radius: 8px;
     font-weight: 600; text-decoration: none; transition: top 120ms ease;
   }
   .skip-link:focus { top: 12px; }
-  .icon { width: 20px; height: 20px; flex: 0 0 auto; }
+  .icon { width: 18px; height: 18px; flex: 0 0 auto; }
+  .label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
 
   /* ---------------- Shell grid ----------------
      Fixed to the visible viewport (minus the on-screen keyboard, --kb, fed by
@@ -86,205 +79,177 @@
      does. Keeps WebKit from panning the whole page when the keyboard opens. */
   .shell {
     display: grid; height: 100%; height: calc(100dvh - var(--kb, 0px));
-    grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--panel-w);
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--aside-w);
     grid-template-rows: minmax(0, 1fr);
-    grid-template-areas: "side main panel";
+    grid-template-areas: "side main aside";
   }
   .sidebar { grid-area: side; }
   .app, .map-view { grid-area: main; min-width: 0; }
-  .panel { grid-area: panel; }
+  .aside { grid-area: aside; }
   .topbar { display: none; grid-area: top; }
 
   /* ---------------- Sidebar ---------------- */
   .sidebar {
     display: flex; flex-direction: column;
     background: var(--bg-2); border-right: 1px solid var(--line);
-    padding: 22px 14px calc(16px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    padding: 18px 12px calc(14px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
     overflow-y: auto;
   }
-  .brand {
-    display: block; width: 100%; padding: 12px 18px 24px; margin: 0;
-    background: transparent; border: none; cursor: pointer; border-radius: var(--radius-sm);
-  }
-  .brand__logo { display: block; width: 100%; max-width: 176px; height: auto; margin: 0 auto; }
-  .brand:hover .brand__logo { opacity: 0.9; }
-
-  .nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .brand { display: block; width: 100%; padding: 8px 16px 22px; margin: 0; background: transparent; border: none; cursor: pointer; border-radius: 8px; }
+  .brand__logo { display: block; width: 100%; max-width: 124px; height: auto; margin: 0 auto; }
+  .nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
   .nav-item {
-    width: 100%; display: flex; align-items: center; gap: 12px;
-    padding: 11px 14px; border: 1px solid transparent; border-radius: var(--radius-sm);
+    width: 100%; display: flex; align-items: center; gap: 11px;
+    padding: 9px 12px; border: none; border-radius: 8px; min-height: 40px;
     background: transparent; color: var(--muted); cursor: pointer; text-align: left;
-    font-size: 14.5px; font-weight: 500; min-height: 44px;
-    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+    font-size: 14px; font-weight: 500;
+    transition: background 120ms ease, color 120ms ease;
   }
-  .nav-item:hover { background: var(--glass-hover); color: var(--text); }
-  .nav-item.is-active {
-    background: linear-gradient(90deg, rgba(110,11,28,0.85), rgba(110,11,28,0.35));
-    border-color: rgba(200,16,46,0.35); color: var(--text);
-  }
-  .nav-item.is-active .icon { color: #ff8a9a; }
+  .nav-item:hover { background: var(--hover); color: var(--text); }
+  .nav-item.is-active { background: var(--hover); color: var(--text); }
+  .nav-item.is-active .icon { color: var(--red); }
   .sidebar__spacer { flex: 1 1 auto; }
-  .sidebar__rule { border: 0; border-top: 1px solid var(--line); margin: 14px 8px; }
+  .sidebar__rule { border: 0; border-top: 1px solid var(--line); margin: 12px 8px; }
 
   /* ---------------- Topbar (tablet / mobile only) ---------------- */
   .topbar {
-    align-items: center; gap: 10px; height: 56px;
-    padding: 0 12px 0 calc(8px + env(safe-area-inset-left));
+    align-items: center; gap: 6px; height: 54px;
+    padding: 0 10px 0 calc(6px + env(safe-area-inset-left));
     background: var(--header); border-bottom: 1px solid var(--line);
     -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
   }
-  .topbar__crest { width: 26px; height: 29px; }
-  .topbar__brand { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; padding: 6px 8px; border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 8px; text-align: left; }
-  .topbar__brand:hover { background: var(--glass-hover); }
-  .topbar__title { font-size: 15px; font-weight: 600; white-space: nowrap; }
-  .topbar__title strong { color: var(--red); font-weight: 700; }
-  .home-btn {
-    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px;
-    border: 1px solid var(--line); border-radius: 9999px; background: var(--glass); color: var(--muted);
-    font-size: 13.5px; font-weight: 600; cursor: pointer;
-  }
-  .home-btn:hover { color: var(--text); border-color: rgba(200,16,46,0.5); background: var(--glass-hover); }
-  .home-btn .icon { width: 17px; height: 17px; }
-  .menu-btn {
-    width: 44px; height: 44px; border-radius: 10px; border: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    background: transparent; color: var(--text);
-  }
-  .menu-btn:hover { background: var(--glass-hover); }
-  .menu-btn .icon { width: 24px; height: 24px; }
+  .menu-btn, .topbar__brand, .home-btn { border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 8px; }
+  .menu-btn { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; }
+  .menu-btn .icon { width: 22px; height: 22px; }
+  .topbar__brand { display: flex; align-items: center; gap: 9px; flex: 1 1 auto; min-width: 0; padding: 6px 8px; text-align: left; font-size: 15px; font-weight: 600; }
+  .topbar__brand img { width: 22px; height: 22px; }
+  .home-btn { padding: 8px 12px; min-height: 40px; font-size: 14px; font-weight: 500; color: var(--muted); }
+  .menu-btn:hover, .topbar__brand:hover, .home-btn:hover { background: var(--hover); color: var(--text); }
   .scrim {
     position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.55);
     opacity: 0; pointer-events: none; transition: opacity 200ms ease;
   }
   .scrim.is-open { opacity: 1; pointer-events: auto; }
 
-  /* ---------------- Main column: chat ---------------- */
+  /* ---------------- Main column ---------------- */
   .app { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
   .main-scroll {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-anchor: none;
     -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
   }
-  .main-inner { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 28px 28px; }
-  /* Before the first message: centre the welcome block in the space above the
-     composer so tall screens don't show a void under the cards. */
-  .app.is-welcome .main-scroll { display: flex; flex-direction: column; }
-  .app.is-welcome .main-inner { margin: auto; }
+  .main-inner { width: 100%; max-width: var(--content-w); margin: 0 auto; padding: 24px 32px 24px; }
 
-  /* Hero */
-  .hero {
-    position: relative; padding: 44px 0 26px; margin-bottom: 6px;
-    isolation: isolate; /* keeps the z-index:-1 photo/overlay above the page bg but under the text */
-  }
-  /* Campus aerial photo at low opacity behind the hero, under a dark overlay
-     that fades into the page background so the heading stays readable.
-     Source: static/campus-hero.webp (Centre for Innovation and Learning). */
-  .hero::before {
-    content: ""; position: absolute; inset: -60px -28px -40px; z-index: -1; pointer-events: none;
-    background-image: url("campus-hero.webp");
-    background-size: cover; background-position: center 45%;
-    opacity: 0.30; filter: saturate(0.85);
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
-    mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
-  }
-  .hero::after {
-    content: ""; position: absolute; inset: -60px -28px -40px; z-index: -1; pointer-events: none;
-    background:
-      radial-gradient(60% 70% at 10% 0%, rgba(200,16,46,0.18) 0%, rgba(200,16,46,0) 70%),
-      linear-gradient(180deg, rgba(14,14,16,0.15) 0%, rgba(14,14,16,0.55) 60%, var(--bg) 100%);
-  }
-  .hero__kicker { font-size: 12px; font-weight: 600; letter-spacing: 0.18em; color: var(--muted); margin: 0 0 10px; }
-  .hero__title { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.08; margin: 0 0 12px; }
-  .hero__title em { font-style: normal; color: var(--red); }
-  .hero__sub { font-size: 17px; color: var(--muted); margin: 0; max-width: 620px; line-height: 1.5; }
-  .hero__sub strong { color: var(--text); font-weight: 500; }
-
-  /* Quick action cards */
-  .section-title { font-size: 15px; font-weight: 600; margin: 0 0 12px; color: var(--text); }
-  .qa { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .qa-card {
-    width: 100%; height: 100%; min-height: 156px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
-    padding: 16px 16px 14px; text-align: left; cursor: pointer;
-    background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius);
-    color: var(--text); box-shadow: var(--shadow-sm);
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-    transition: border-color 140ms ease, transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
-  }
-  .qa-card:hover { border-color: rgba(200,16,46,0.5); background: var(--glass-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
-  .qa-card__icon {
-    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    background: var(--red-soft); color: #ff5f75; border: 1px solid rgba(200,16,46,0.3);
-  }
-  .qa-card__title { font-size: 15px; font-weight: 600; line-height: 1.25; }
-  .qa-card__prompt { font-size: 13px; color: var(--muted); line-height: 1.4; flex: 1 1 auto; }
-  .qa-card__go { align-self: flex-end; color: var(--dim); }
-  .qa-card:hover .qa-card__go { color: var(--red-hover); }
-
-  /* Welcome block hides once a conversation starts (Home brings it back) */
+  /* Intro: one photo band carrying the crest and a short line. */
   .welcome.is-hidden { display: none; }
-  /* On tablet/mobile the info panel is moved into this slot by JS */
-  .panel-slot:empty { display: none; }
+  .intro {
+    position: relative; overflow: hidden; border-radius: 12px;
+    padding: 26px 26px 24px; min-height: 148px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+    background: var(--bg-2);
+  }
+  .intro__photo {
+    position: absolute; inset: 0; z-index: 0;
+    background-image: url("campus-hero.webp"); background-size: cover; background-position: center 45%;
+    opacity: 0.42; filter: saturate(0.8);
+  }
+  .intro__shade {
+    position: absolute; inset: 0; z-index: 0;
+    background: linear-gradient(180deg, rgba(15,15,17,0.15) 0%, rgba(15,15,17,0.72) 70%, rgba(15,15,17,0.9) 100%);
+  }
+  .intro__row, .intro__sub { position: relative; z-index: 1; }
+  .intro__row { display: flex; align-items: center; gap: 10px; }
+  .intro__crest { width: 26px; height: 26px; }
+  .intro__title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
+  .intro__sub { font-size: 14px; color: var(--muted); margin: 0; max-width: 56ch; }
 
-  /* ---------------- Messages (user bubble · AI plain text) ---------------- */
-  .thread { width: 100%; max-width: var(--thread-w); margin: 0 auto; padding-top: 12px; }
-  .turn { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 22px; }
+  /* Conversation starters: a two-column list, hairlines instead of cards. */
+  .starters { margin: 22px 0 0; }
+  .starters__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+  .starter {
+    width: 100%; display: flex; align-items: center; gap: 12px; min-height: 46px;
+    padding: 10px 8px; border: none; border-top: 1px solid var(--line); border-radius: 0;
+    background: transparent; color: var(--text); cursor: pointer; text-align: left;
+    font-size: 14px; font-weight: 500; line-height: 1.35;
+    transition: background 120ms ease;
+  }
+  .starter:hover { background: var(--hover); }
+  .starter:focus-visible { border-radius: 6px; }
+  .starter .icon { color: var(--muted); }
+  .starter small { display: block; font-size: 12px; font-weight: 400; color: var(--dim); margin-top: 1px; }
+  .starters__list > li:nth-last-child(-n+2) .starter { border-bottom: 1px solid var(--line); }
+
+  /* Tablet/mobile: the aside moves into this slot (JS). */
+  .aside-slot:empty { display: none; }
+
+  /* ---------------- Conversation ---------------- */
+  .thread { width: 100%; margin: 0 auto; padding-top: 8px; }
+  .turn { display: flex; margin-bottom: 18px; }
   .turn--user { justify-content: flex-end; }
-  .turn--bot  { display: block; margin-bottom: 34px; }
+  .turn--bot { display: block; margin-bottom: 28px; }
   .bubble {
-    max-width: 78%; font-size: 16px; line-height: 1.6;
-    padding: 11px 17px; border-radius: 18px;
-    white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: var(--shadow-sm);
+    max-width: 72%; font-size: 15px; line-height: 1.55;
+    padding: 10px 14px; border-radius: 14px; border-bottom-right-radius: 4px;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    background: var(--bg-3); color: var(--text);
   }
-  .bubble-user { background: var(--bg-3); border: 1px solid var(--line); color: var(--text); border-bottom-right-radius: 6px; }
   .bubble-bot {
-    max-width: 100%; background: none; color: var(--text);
-    padding: 2px 0; border-radius: 0; box-shadow: none; line-height: 1.75; white-space: normal;
+    max-width: 100%; background: none; padding: 0; border-radius: 0;
+    line-height: 1.7; white-space: normal;
   }
-  .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; gap: 4px; }
-  .bot-col .bubble { max-width: 100%; }
-  .bot-mark { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--dim); margin-bottom: 4px; }
-  .bot-mark img { width: 16px; height: 18px; }
+  .bot-col { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; gap: 6px; }
+  .bot-mark { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--dim); }
+  .bot-mark img { width: 14px; height: 14px; }
 
   .bubble-bot > :first-child { margin-top: 0; }
   .bubble-bot > :last-child { margin-bottom: 0; }
-  .bubble-bot p { margin: 0 0 14px; }
-  .bubble-bot h1, .bubble-bot h2, .bubble-bot h3 { font-weight: 600; line-height: 1.3; margin: 20px 0 10px; }
-  .bubble-bot h1 { font-size: 22px; } .bubble-bot h2 { font-size: 19px; } .bubble-bot h3 { font-size: 16px; }
-  .bubble-bot ul, .bubble-bot ol { margin: 0 0 14px; padding-left: 24px; }
-  .bubble-bot li { margin: 4px 0; }
+  .bubble-bot p { margin: 0 0 12px; }
+  .bubble-bot h1, .bubble-bot h2, .bubble-bot h3 { font-weight: 600; line-height: 1.3; margin: 18px 0 8px; }
+  .bubble-bot h1 { font-size: 19px; } .bubble-bot h2 { font-size: 17px; } .bubble-bot h3 { font-size: 15px; }
+  .bubble-bot ul, .bubble-bot ol { margin: 0 0 12px; padding-left: 22px; }
+  .bubble-bot li { margin: 3px 0; }
   .bubble-bot strong { font-weight: 600; }
-  .bubble-bot a { color: #ff8a9a; text-decoration: underline; text-decoration-color: rgba(255,138,154,0.4); text-underline-offset: 2px; }
+  .bubble-bot a { color: var(--link); text-decoration: underline; text-decoration-color: rgba(240,138,153,0.35); text-underline-offset: 2px; }
   .bubble-bot a:hover { text-decoration-color: currentColor; }
   .bubble-bot code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; background: var(--bg-3); padding: 1px 5px; border-radius: 5px; }
-  .bubble-bot pre { background: var(--bg-3); padding: 12px 14px; border-radius: 10px; overflow-x: auto; margin: 0 0 14px; }
+  .bubble-bot pre { background: var(--bg-3); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 0 0 12px; }
   .bubble-bot pre code { background: none; padding: 0; }
 
   .bot-actions { height: 0; overflow: hidden; opacity: 0; transition: opacity 0.18s ease; }
   .turn--bot:hover .bot-actions, .turn--bot:focus-within .bot-actions { height: auto; opacity: 1; }
   .copy-btn {
-    font-size: 13px; font-weight: 600; color: var(--muted); background: transparent; border: none;
-    padding: 4px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px;
+    font-size: 12.5px; font-weight: 500; color: var(--muted); background: transparent; border: none;
+    padding: 2px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px;
   }
   .copy-btn:hover { color: var(--text); }
   .copy-btn .icon { width: 13px; height: 13px; }
 
-  /* Typing dots — Brentwood red */
-  .typing { display: inline-flex; align-items: center; gap: 5px; padding: 3px 1px; }
-  .typing span { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: bounce 1.2s infinite ease-in-out both; }
+  /* Follow-up suggestions under the latest reply, chosen from the question asked */
+  .followups { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 4px; }
+  .followups__label { font-size: 12.5px; color: var(--dim); margin-right: 2px; }
+  .followup {
+    font-size: 13px; font-weight: 500; color: var(--muted);
+    background: transparent; border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 10px; cursor: pointer; min-height: 32px;
+    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  }
+  .followup:hover { color: var(--text); border-color: var(--line-strong); background: var(--hover); }
+
+  .typing { display: inline-flex; align-items: center; gap: 5px; padding: 6px 1px; }
+  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite ease-in-out both; }
   .typing span:nth-child(2) { animation-delay: 0.18s; }
   .typing span:nth-child(3) { animation-delay: 0.36s; }
   @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
 
-  /* Inline error + retry */
-  .error-note { color: var(--muted); }
-  .error-note a { color: #ff8a9a; }
+  .error-note { color: var(--muted); margin: 0; }
+  .error-note a { color: var(--link); }
   .retry {
-    margin-top: 4px; display: inline-flex; align-items: center; gap: 6px;
-    font-size: 14px; font-weight: 600; color: #ff8a9a;
-    background: var(--red-soft); border: 1px solid rgba(200,16,46,0.35); border-radius: 9999px;
-    padding: 8px 15px; cursor: pointer; min-height: 40px;
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 2px;
+    font-size: 13px; font-weight: 500; color: var(--text);
+    background: transparent; border: 1px solid var(--line-strong); border-radius: 8px;
+    padding: 7px 12px; cursor: pointer; min-height: 34px;
   }
-  .retry:hover { background: var(--red-tint); }
-  .retry .icon { width: 15px; height: 15px; }
+  .retry:hover { background: var(--hover); }
+  .retry .icon { width: 14px; height: 14px; }
 
   /* ---------------- Composer ---------------- */
   .composer-dock {
@@ -293,112 +258,75 @@
     -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .composer { width: 100%; max-width: 1040px; margin: 0 auto; padding: 12px 28px 10px; }
+  .composer { width: 100%; max-width: var(--content-w); margin: 0 auto; padding: 12px 32px 10px; }
   .composer__field {
     display: flex; align-items: flex-end; gap: 8px;
-    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 26px;
-    padding: 5px 5px 5px 20px; box-shadow: var(--shadow-sm); transition: border-color 0.18s ease;
+    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 12px;
+    padding: 5px 5px 5px 14px; transition: border-color 0.15s ease;
   }
-  .composer__field:focus-within { border-color: rgba(200,16,46,0.7); }
+  .composer__field:focus-within { border-color: rgba(255,255,255,0.28); }
   textarea#input {
     flex: 1 1 auto; resize: none; border: none; outline: none; background: transparent; box-shadow: none;
-    font-family: var(--font); font-size: 16px; line-height: 1.5; color: var(--text);
-    padding: 10px 0; max-height: 132px; overflow-y: auto;
+    font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--text);
+    padding: 9px 0; max-height: 132px; overflow-y: auto;
   }
   textarea#input::placeholder { color: var(--dim); }
   .send {
-    flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: none;
-    background: var(--red); color: var(--on-red); display: flex; align-items: center; justify-content: center; cursor: pointer;
-    box-shadow: var(--shadow-sm); transition: transform 0.12s ease, background 0.18s ease;
+    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; border: none;
+    background: var(--red); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s ease;
   }
-  .send .icon { width: 19px; height: 19px; }
+  .send .icon { width: 17px; height: 17px; }
   .send:not(:disabled):hover { background: var(--red-hover); }
   .send:not(:disabled):active { transform: scale(0.94); }
-  .send:disabled { background: var(--bg-3); color: var(--dim); cursor: default; box-shadow: none; }
-
-  .composer__meta { display: flex; align-items: center; gap: 8px; padding: 10px 2px 0; min-height: 20px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 auto; min-width: 0; }
-  .chip {
-    font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap;
-    background: var(--glass); border: 1px solid var(--line); border-radius: 9999px;
-    padding: 7px 13px; cursor: pointer; min-height: 34px;
-    transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
-  }
-  .chip:hover { color: var(--text); border-color: rgba(200,16,46,0.5); background: var(--glass-hover); }
-  /* Counter stays out of the way until the message is getting long */
-  .counter { font-size: 11px; font-weight: 500; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; }
+  .send:disabled { background: var(--bg-3); color: var(--dim); cursor: default; }
+  .composer__meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 4px 0; min-height: 18px; }
+  .composer__hint, .counter { font-size: 11.5px; color: var(--dim); }
+  .counter { font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; }
   .counter[hidden] { display: none; }
   .counter.is-warn { color: var(--warn); }
 
-  /* ---------------- Info panel ---------------- */
-  .panel {
-    display: flex; flex-direction: column; gap: 14px;
-    background: var(--bg-2); border-left: 1px solid var(--line);
-    padding: 22px 18px calc(22px + env(safe-area-inset-bottom)) 18px; overflow-y: auto;
+  /* ---------------- Upcoming (aside) ---------------- */
+  .aside {
+    display: flex; flex-direction: column; gap: 18px;
+    border-left: 1px solid var(--line);
+    padding: 26px 22px calc(22px + env(safe-area-inset-bottom)) 22px; overflow-y: auto;
   }
-  .card {
-    background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius);
-    padding: 16px 16px 14px; box-shadow: var(--shadow-sm);
-  }
-  .card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
-  .card__title { font-size: 15px; font-weight: 600; margin: 0; }
-  .card__link { font-size: 12.5px; font-weight: 500; color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; }
-  .card__link:hover { color: var(--text); }
-  .card__link .icon { width: 14px; height: 14px; }
-
-  .linklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .linklist button {
-    width: 100%; display: flex; align-items: center; gap: 8px; min-height: 40px;
-    padding: 8px 6px; border: none; border-radius: 8px; background: transparent; color: var(--muted);
-    font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; transition: color 140ms ease, background 140ms ease;
-  }
-  .linklist button:hover { color: var(--text); background: var(--glass-hover); }
-  .linklist .icon { width: 15px; height: 15px; color: var(--red); }
-
-  .events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-  .event { display: grid; grid-template-columns: 46px 1fr; gap: 12px; align-items: start; }
-  .event__date { text-align: center; border-right: 2px solid var(--red); padding-right: 10px; line-height: 1.05; }
-  .event__mon { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--red); text-transform: uppercase; }
-  .event__day { display: block; font-size: 22px; font-weight: 700; color: var(--text); margin-top: 2px; }
-  .event__name { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.3; }
-  .event__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
-  .event__meta span { display: inline-flex; align-items: center; gap: 4px; }
-  .event__meta .icon { width: 13px; height: 13px; }
-  .event__tag { font-size: 11px; font-weight: 600; color: #ff8a9a; background: var(--red-soft); border-radius: 6px; padding: 1px 6px; }
-  .event__meta a { color: inherit; }
-  .events-empty { font-size: 13.5px; color: var(--muted); margin: 0; }
-  .skeleton { height: 40px; border-radius: 8px; background: linear-gradient(90deg, var(--glass) 25%, var(--glass-hover) 50%, var(--glass) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
-  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-  .btn-outline {
-    display: block; width: 100%; margin-top: 14px; padding: 10px 14px; min-height: 42px;
-    text-align: center; text-decoration: none; font-size: 13.5px; font-weight: 600; color: var(--text);
-    background: var(--red-soft); border: 1px solid rgba(200,16,46,0.45); border-radius: 9999px;
-    transition: background 140ms ease, border-color 140ms ease;
-  }
-  .btn-outline:hover { background: var(--red-tint); border-color: var(--red); }
-  .panel__note { font-size: 12px; color: var(--dim); margin: 0; padding: 0 4px; }
-  .panel__note a { color: var(--muted); }
+  .aside__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 4px; }
+  .aside__title { font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
+  .aside__link { font-size: 12.5px; color: var(--muted); text-decoration: none; }
+  .aside__link:hover { color: var(--text); text-decoration: underline; }
+  .events { list-style: none; margin: 0; padding: 0; }
+  .event { padding: 10px 0; border-top: 1px solid var(--line); }
+  .event:last-child { border-bottom: 1px solid var(--line); }
+  .event__date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .event__name { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.35; margin-top: 1px; }
+  .event__time { font-size: 12.5px; color: var(--dim); margin-top: 1px; }
+  .events-empty, .skeleton { font-size: 13px; color: var(--muted); margin: 0; padding: 10px 0; }
+  .skeleton { height: 36px; border-radius: 6px; background: var(--hover); padding: 0; }
+  .aside__note { font-size: 12px; color: var(--dim); line-height: 1.5; margin: 0; }
+  .aside__note a { color: var(--muted); }
 
   /* ---------------- Map view (Campus) ---------------- */
   .map-view { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
-  .map-view[hidden] { display: none; } /* author display:flex beats the UA's [hidden] — restore it */
+  .map-view[hidden] { display: none; }
   .map-head {
     flex: 0 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 14px 20px; background: var(--header); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; background: var(--header); border-bottom: 1px solid var(--line);
     -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
   }
-  .map-head h2 { font-size: 16px; font-weight: 600; margin: 0 8px 0 0; }
+  .map-head h2 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; }
   #mapSearch {
-    flex: 0 1 360px; min-width: 0; font-family: var(--font); font-size: 15px; color: var(--text);
-    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 9999px; padding: 9px 18px; outline: none;
+    flex: 0 1 340px; min-width: 0; font-family: var(--font); font-size: 14px; color: var(--text);
+    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 12px; outline: none;
   }
-  #mapSearch:focus { border-color: rgba(200,16,46,0.7); box-shadow: none; }
+  #mapSearch:focus { border-color: rgba(255,255,255,0.28); box-shadow: none; }
   #mapSearch::placeholder { color: var(--dim); }
-  .map-status { font-size: 13px; font-weight: 500; color: var(--dim); white-space: nowrap; }
+  .map-status { font-size: 13px; color: var(--dim); white-space: nowrap; }
   .map-status.is-error { color: var(--warn); }
   .map-stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
   .map-canvas { position: relative; max-width: 1200px; min-width: 720px; margin: 0 auto; }
-  .map-canvas img { display: block; width: 100%; border-radius: 14px; user-select: none; -webkit-user-select: none; }
+  .map-canvas img { display: block; width: 100%; border-radius: 10px; user-select: none; -webkit-user-select: none; }
   .map-pin { position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
   .map-pin__dot {
     display: block; width: 16px; height: 16px; box-sizing: border-box;
@@ -412,52 +340,37 @@
   }
   .map-pin__label {
     position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
-    padding: 3px 10px; border-radius: 9999px; background: rgba(14,14,16,0.9); border: 1px solid var(--line);
-    color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap;
+    padding: 3px 9px; border-radius: 6px; background: rgba(15,15,17,0.9); border: 1px solid var(--line);
+    color: var(--text); font-size: 12px; font-weight: 500; white-space: nowrap;
   }
 
   /* ---------------- Responsive ----------------
-     Tablet (<1200px): sidebar becomes a drawer, panel moves under the main
-     content (JS relocates the node into .panel-slot). */
-  @media (max-width: 1199px) {
+     Tablet (<1100px): sidebar becomes a drawer; the aside moves under the
+     starters (JS relocates the node into .aside-slot). */
+  @media (max-width: 1099px) {
     .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "top" "main"; }
     .topbar { display: flex; }
     .sidebar {
-      position: fixed; left: 0; top: 0; bottom: 0; z-index: 70; width: 280px; max-width: 86vw;
-      padding-top: calc(18px + env(safe-area-inset-top)); box-shadow: var(--shadow-md);
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 70; width: 264px; max-width: 84vw;
+      padding-top: calc(16px + env(safe-area-inset-top)); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
       transform: translateX(-100%); visibility: hidden;
       transition: transform 200ms ease, visibility 0s linear 200ms;
     }
     .sidebar.is-open { transform: translateX(0); visibility: visible; transition: transform 200ms ease; }
-    .panel { border-left: none; background: transparent; padding: 0; overflow: visible; }
-    .panel .card { background: var(--glass); }
-    .panel-slot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
-    .panel-slot .panel { display: contents; }
-    .panel-slot .panel__note { grid-column: 1 / -1; }
-    .qa { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .hero { padding-top: 30px; }
+    .aside { border-left: none; padding: 0; overflow: visible; gap: 10px; margin-top: 26px; }
+    .aside-slot { display: block; }
   }
-  /* Mobile (<720px): stacked layout, cards scroll horizontally, panel stacks. */
-  @media (max-width: 719px) {
-    .main-inner { padding: 0 16px 20px; }
+  /* Mobile (<680px): single column, starters stack, input stays reachable. */
+  @media (max-width: 679px) {
+    .main-inner { padding: 16px 16px 20px; }
     .composer { padding: 10px 12px 8px; }
-    .hero { padding: 24px 0 18px; }
-    .hero::before, .hero::after { inset: -60px -16px -30px; }
-    .hero__title { font-size: 34px; }
-    .hero__sub { font-size: 15px; }
-    .qa {
-      display: flex; overflow-x: auto; gap: 10px; margin: 0 -16px; padding: 2px 16px 10px;
-      scroll-snap-type: x mandatory; scrollbar-width: none;
-    }
-    .qa::-webkit-scrollbar { display: none; }
-    .qa > li { flex: 0 0 158px; scroll-snap-align: start; }
-    .qa-card { min-height: 150px; }
-    .qa-card:hover { transform: none; }
-    .panel-slot { grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
-    .bubble-user { max-width: 86%; }
-    .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-    .chips::-webkit-scrollbar { display: none; }
-    .composer__meta { padding-top: 8px; }
+    .composer__hint { display: none; }
+    .intro { padding: 20px 18px 18px; min-height: 128px; border-radius: 10px; }
+    .intro__title { font-size: 18px; }
+    .starters__list { grid-template-columns: minmax(0, 1fr); }
+    .starters__list > li:nth-last-child(-n+2) .starter { border-bottom: none; }
+    .starters__list > li:last-child .starter { border-bottom: 1px solid var(--line); }
+    .bubble { max-width: 86%; }
     .map-head { padding: 10px 12px; }
     .map-head h2 { flex: 1 0 100%; margin: 0 0 6px; }
   }
@@ -465,9 +378,8 @@
     .main-scroll { scroll-behavior: auto; }
     .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
     .send:not(:disabled):active { transform: none; }
-    .qa-card, .qa-card:hover { transform: none; transition: none; }
     .map-pin__dot { animation: none; }
-    .sidebar, .scrim, .skeleton { transition: none; animation: none; }
+    .sidebar, .scrim { transition: none; }
   }
 </style>
 </head>
@@ -481,17 +393,14 @@
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
       <button type="button" class="topbar__brand" data-view="home" aria-label="Home">
-        <img class="topbar__crest" src="crest.png" alt="" />
-        <span class="topbar__title">Brentwood <strong>Assistant</strong></span>
+        <img src="crest.png" alt="" />
+        <span>Brentwood Assistant</span>
       </button>
-      <button type="button" class="home-btn" data-view="home" aria-label="Home">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
-        <span>Home</span>
-      </button>
+      <button type="button" class="home-btn" data-view="home">Home</button>
     </header>
     <div class="scrim" id="scrim"></div>
 
-    <!-- Sidebar (fixed on desktop, drawer below 1200px) -->
+    <!-- Sidebar (fixed on desktop, drawer below 1100px) -->
     <aside class="sidebar" id="sidebar" aria-label="Main navigation">
       <button type="button" class="brand" data-view="home" aria-label="Brentwood College School — home">
         <img class="brand__logo" src="brentwood-logo-stacked.png" alt="Brentwood College School" />
@@ -505,19 +414,19 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span>Ask</span></button></li>
           <li><button type="button" class="nav-item" data-view="map">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V8l4-4 4 4 4-4 4 4v13"/><path d="M4 21h16"/><path d="M10 21v-5h4v5"/><path d="M8 12h.01M16 12h.01"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
             <span>Campus</span></button></li>
           <li><button type="button" class="nav-item" data-fill="What courses can I take at Brentwood?">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8 12 3l10 5-10 5z"/><path d="M6 10.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-5.5"/><path d="M22 8v6"/></svg>
             <span>Academics</span></button></li>
-          <li><button type="button" class="nav-item" data-fill="Tell me about clubs and student life at Brentwood.">
+          <li><button type="button" class="nav-item" data-fill="What clubs and activities can I join?">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg>
             <span>Student Life</span></button></li>
-          <li><button type="button" class="nav-item" data-fill="How do I book the Health Centre?">
+          <li><button type="button" class="nav-item" data-fill="Where can I get support at school?">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6z"/><path d="M12 9v6M9 12h6"/></svg>
             <span>Policies &amp; Support</span></button></li>
-          <li><button type="button" class="nav-item" data-fill="What events are coming up?" data-scroll="eventsCard">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h3M13 14h3M8 17h3"/></svg>
+          <li><button type="button" class="nav-item" data-fill="When is the next school break?" data-scroll="asideEvents">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
             <span>Events</span></button></li>
         </ul>
       </nav>
@@ -529,56 +438,54 @@
       </button>
     </aside>
 
-    <!-- Main column: home + chat -->
+    <!-- Main column: intro + conversation -->
     <div class="app" id="app">
       <main class="main-scroll" id="scroll">
         <div class="main-inner">
           <div class="welcome" id="welcome">
-            <section class="hero" id="hero" aria-labelledby="heroTitle">
-              <p class="hero__kicker">WELCOME TO</p>
-              <h1 class="hero__title" id="heroTitle">Brentwood <em>Assistant</em></h1>
-              <p class="hero__sub"><strong>Your quick guide to life at Brentwood.</strong><br />Ask questions, find information, and get connected.</p>
+            <section class="intro" aria-labelledby="introTitle">
+              <div class="intro__photo" aria-hidden="true"></div>
+              <div class="intro__shade" aria-hidden="true"></div>
+              <div class="intro__row">
+                <img class="intro__crest" src="crest.png" alt="" />
+                <h1 class="intro__title" id="introTitle">Brentwood Assistant</h1>
+              </div>
+              <p class="intro__sub">Ask about block order, meals, sign-in times, clubs, support and the rest of school life.</p>
             </section>
 
-            <section aria-labelledby="qaTitle">
-              <h2 class="section-title sr-only" id="qaTitle">Quick actions</h2>
-              <ul class="qa">
-                <li><button type="button" class="qa-card" data-send="What's the block order today?">
-                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
-                  <span class="qa-card__title">Today’s Block Order</span>
-                  <span class="qa-card__prompt">What’s the block order today?</span>
-                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            <section class="starters" aria-labelledby="startersTitle">
+              <p class="label" id="startersTitle">Try asking</p>
+              <ul class="starters__list">
+                <li><button type="button" class="starter" data-send="What's the block order today?">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                  <span>What’s the block order today?<small>Blocks, breaks and the afternoon</small></span>
                 </button></li>
-                <li><button type="button" class="qa-card" data-send="What's for lunch today?">
-                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3"/><path d="M9 10v11"/><path d="M17 3c-1.7 0-3 2.5-3 5.5 0 2 .8 3.5 2 4V21"/></svg></span>
-                  <span class="qa-card__title">Dining</span>
-                  <span class="qa-card__prompt">What’s for lunch today?</span>
-                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                <li><button type="button" class="starter" data-send="What's for lunch today?">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3"/><path d="M9 10v11"/><path d="M17 3c-1.7 0-3 2.5-3 5.5 0 2 .8 3.5 2 4V21"/></svg>
+                  <span>What’s for lunch today?<small>Menus, meal times and sign-ins</small></span>
                 </button></li>
-                <!-- A map route already exists in this app, so this card opens it directly -->
-                <li><button type="button" class="qa-card" data-view="map">
-                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg></span>
-                  <span class="qa-card__title">Campus Map</span>
-                  <span class="qa-card__prompt">Where is the library?</span>
-                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                <!-- The campus map already exists as a view, so this opens it directly -->
+                <li><button type="button" class="starter" data-view="map">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
+                  <span>Find a building on the campus map<small>Houses, Crooks Hall, the Health Centre</small></span>
                 </button></li>
-                <li><button type="button" class="qa-card" data-send="Tell me about clubs.">
-                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg></span>
-                  <span class="qa-card__title">Student Life</span>
-                  <span class="qa-card__prompt">Tell me about clubs.</span>
-                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                <li><button type="button" class="starter" data-send="Tell me about clubs.">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg>
+                  <span>Tell me about clubs<small>Student life and activities</small></span>
                 </button></li>
-                <li><button type="button" class="qa-card" data-send="How do I book the Health Centre?">
-                  <span class="qa-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg></span>
-                  <span class="qa-card__title">Policies &amp; Support</span>
-                  <span class="qa-card__prompt">How do I book the Health Centre?</span>
-                  <svg class="icon qa-card__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                <li><button type="button" class="starter" data-send="How do I book the Health Centre?">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+                  <span>How do I book the Health Centre?<small>Policies and support</small></span>
+                </button></li>
+                <li><button type="button" class="starter" data-send="What time is sign-in tonight?">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                  <span>What time is sign-in tonight?<small>House sign-ins and bedtimes</small></span>
                 </button></li>
               </ul>
             </section>
 
-            <!-- Below 1200px the info panel is moved here by JS -->
-            <div class="panel-slot" id="panelSlot"></div>
+            <!-- Below 1100px the Upcoming aside is moved here by JS -->
+            <div class="aside-slot" id="asideSlot"></div>
           </div>
 
           <div class="thread">
@@ -592,18 +499,13 @@
         <form class="composer" id="form">
           <div class="composer__field">
             <label for="input" class="sr-only">Ask Brentwood Assistant</label>
-            <textarea id="input" rows="1" maxlength="500" placeholder="Ask me anything about Brentwood..." aria-describedby="counter"></textarea>
+            <textarea id="input" rows="1" maxlength="500" placeholder="Ask about Brentwood…" aria-describedby="counter"></textarea>
             <button class="send" id="send" type="submit" aria-label="Send" disabled>
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
             </button>
           </div>
           <div class="composer__meta">
-            <div class="chips" aria-label="Suggested questions">
-              <button type="button" class="chip" data-send="What's the block order today?">What’s the block order today?</button>
-              <button type="button" class="chip" data-send="What events are coming up?">What events are coming up?</button>
-              <button type="button" class="chip" data-send="How do I join a club?">How do I join a club?</button>
-              <button type="button" class="chip" data-send="Where can I get help?">Where can I get help?</button>
-            </div>
+            <span class="composer__hint">Enter to send · Shift+Enter for a new line</span>
             <span class="counter" id="counter" aria-live="off" hidden>0/500</span>
           </div>
         </form>
@@ -613,9 +515,9 @@
     <!-- Campus map view (shares the main column with the chat) -->
     <section class="map-view" id="mapView" hidden aria-label="Campus map">
       <div class="map-head">
-        <h2>Campus Map</h2>
+        <h2>Campus map</h2>
         <label for="mapSearch" class="sr-only">Search a building</label>
-        <input id="mapSearch" type="search" placeholder="Search a building&hellip;" autocomplete="off" spellcheck="false" />
+        <input id="mapSearch" type="search" placeholder="Search a building…" autocomplete="off" spellcheck="false" />
         <span class="map-status" id="mapStatus" aria-live="polite"></span>
       </div>
       <div class="map-stage">
@@ -629,32 +531,19 @@
       </div>
     </section>
 
-    <!-- Right information panel (desktop) / stacked cards (tablet, mobile) -->
-    <aside class="panel" id="panel" aria-label="School information">
-      <section class="card" aria-labelledby="popTitle">
-        <div class="card__head"><h2 class="card__title" id="popTitle">Popular Questions</h2></div>
-        <!-- Each item sends a prompt the backend can answer from its own data
-             (school knowledge, dorm sign-ins, afternoon rules, official calendar). -->
-        <ul class="linklist">
-          <li><button type="button" data-send="How do I join a club?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>How to join a club</button></li>
-          <li><button type="button" data-send="Who are the houseparents for each house?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>House contact information</button></li>
-          <li><button type="button" data-send="What time is sign-in tonight?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Sign-in times</button></li>
-          <li><button type="button" data-send="Is tomorrow an art or sport day?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Art or sport day</button></li>
-          <li><button type="button" data-send="When is the next school break?"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Academic calendar</button></li>
-        </ul>
-      </section>
-
-      <section class="card" id="eventsCard" aria-labelledby="evTitle">
-        <div class="card__head">
-          <h2 class="card__title" id="evTitle">Upcoming Events</h2>
+    <!-- Upcoming events: secondary, desktop right column / stacked below on smaller screens -->
+    <aside class="aside" id="aside" aria-label="Upcoming events">
+      <section id="asideEvents" aria-labelledby="evTitle">
+        <div class="aside__head">
+          <h2 class="aside__title" id="evTitle">Upcoming</h2>
+          <a class="aside__link" id="calendarLink" href="https://www.brentwood.ca/calendar/" target="_blank" rel="noopener noreferrer">Full calendar</a>
         </div>
         <ul class="events" id="events" aria-busy="true">
           <li class="skeleton" aria-hidden="true"></li>
           <li class="skeleton" aria-hidden="true"></li>
         </ul>
-        <a class="btn-outline" id="calendarLink" href="https://www.brentwood.ca/calendar/" target="_blank" rel="noopener noreferrer">View Full Calendar</a>
       </section>
-      <p class="panel__note">Information is drawn from <a href="https://www.brentwood.ca/" target="_blank" rel="noopener noreferrer">brentwood.ca</a> and school feeds. Check official pages for anything time-sensitive.</p>
+      <p class="aside__note">From the public school calendar and <a href="https://www.brentwood.ca/" target="_blank" rel="noopener noreferrer">brentwood.ca</a>. Check official pages for anything time-sensitive.</p>
     </aside>
   </div>
 
@@ -662,8 +551,7 @@
   // ============================================================
   // API: Flask serves @app.route("/chat", POST) and GET /api/upcoming-events
   // (public school-calendar highlights). Behind nginx that proxies "/api",
-  // change API_ENDPOINT to "/api/chat".
-  // POST {message,memory}->{reply}
+  // change API_ENDPOINT to "/api/chat". POST {message,memory}->{reply}
   // ============================================================
   const API_ENDPOINT = "/chat";
   const EVENTS_ENDPOINT = "/api/upcoming-events";
@@ -690,14 +578,13 @@
   const menuBtn   = $("menuBtn");
   const scrimEl   = $("scrim");
   const mapViewEl = $("mapView");
-  const panelEl   = $("panel");
-  const panelSlot = $("panelSlot");
+  const asideEl   = $("aside");
+  const asideSlot = $("asideSlot");
 
   let inFlight = false;
 
   const ICON_COPY  = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
   const ICON_RETRY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
-  const ICON_CLOCK = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
   // ---------------- Composer behavior ----------------
   function autoGrow() { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px"; }
@@ -735,7 +622,7 @@
     const turn = document.createElement("div");
     turn.className = "turn turn--user";
     const bubble = document.createElement("div");
-    bubble.className = "bubble bubble-user";
+    bubble.className = "bubble";
     bubble.textContent = text;
     turn.appendChild(bubble);
     logEl.appendChild(turn);
@@ -790,7 +677,55 @@
     }
   }
 
-  function renderReply(bubble, col, text) {
+  // ---------------- Follow-up suggestions ----------------
+  // Picked from what the student just asked, never repeating an earlier question.
+  const FOLLOW_UPS = [
+    { test: /block|schedule|timetable|cookie break|tutorial|assembly/i,
+      prompts: ["What's the block order tomorrow?", "Is tomorrow an art or sport day?", "When is the cookie break today?"] },
+    { test: /lunch|dinner|breakfast|brunch|meal|food|menu|eat/i,
+      prompts: ["What's for dinner today?", "What are tomorrow's meals?", "Do I need to sign in for dinner?"] },
+    { test: /sign.?in|curfew|bedtime|lights|dorm|house/i,
+      prompts: ["What time is bedtime?", "What's the sign-in time on Saturday?", "Who are the houseparents?"] },
+    { test: /club|activit|student life|sport|art\b|arts\b/i,
+      prompts: ["Is tomorrow an art or sport day?", "When is art block 2?", "When is the next school break?"] },
+    { test: /break|holiday|calendar|leave|vacation/i,
+      prompts: ["When do we come back after the break?", "What's the block order tomorrow?"] },
+    { test: /health|nurse|support|help|counsel|wellness/i,
+      prompts: ["Where is the Health Centre?", "Who can I talk to if I feel stressed?"] },
+  ];
+  const DEFAULT_FOLLOW_UPS = ["What's the block order tomorrow?", "What's for lunch tomorrow?", "What time is sign-in tonight?"];
+
+  function pickFollowUps(userText) {
+    const asked = new Set(conversation.filter(t => t.role === "user").map(t => t.text.trim().toLowerCase()));
+    const pool = [];
+    for (const rule of FOLLOW_UPS) if (rule.test.test(userText)) pool.push(...rule.prompts);
+    pool.push(...DEFAULT_FOLLOW_UPS);
+    const out = [];
+    for (const p of pool) {
+      if (asked.has(p.toLowerCase()) || out.includes(p)) continue;
+      out.push(p);
+      if (out.length === 3) break;
+    }
+    return out;
+  }
+  function clearFollowUps() { document.querySelectorAll(".followups").forEach(el => el.remove()); }
+  function renderFollowUps(col, userText) {
+    const prompts = pickFollowUps(userText);
+    if (!prompts.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "followups";
+    const label = document.createElement("span");
+    label.className = "followups__label"; label.textContent = "Ask next";
+    wrap.appendChild(label);
+    prompts.forEach(p => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "followup"; b.textContent = p; b.dataset.send = p;
+      wrap.appendChild(b);
+    });
+    col.appendChild(wrap);
+  }
+
+  function renderReply(bubble, col, text, userText) {
     renderRichText(bubble, text);
     const actions = document.createElement("div");
     actions.className = "bot-actions";
@@ -805,6 +740,7 @@
     });
     actions.appendChild(copyBtn);
     col.appendChild(actions);
+    renderFollowUps(col, userText);
     scrollToBottom();
   }
 
@@ -815,7 +751,7 @@
     note.append("I couldn’t find that information. Try rephrasing your question or check the ");
     const a = document.createElement("a");
     a.href = OFFICIAL_SITE; a.target = "_blank"; a.rel = "noopener noreferrer";
-    a.textContent = "official school source";
+    a.textContent = "official school site";
     note.append(a, ".");
     bubble.appendChild(note);
     const retry = document.createElement("button");
@@ -846,6 +782,7 @@
   function sendMessage(text) {
     showView("chat");
     setWelcome(false);
+    clearFollowUps();
     appendUser(text);
     conversation.push({ role: "user", text });
     inputEl.value = ""; autoGrow(); updateCounter();
@@ -873,7 +810,7 @@
       const data = await res.json();
       const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());
       const reply = hasReply ? data.reply : "I’m sorry — I didn’t catch that. Could you try rephrasing?";
-      renderReply(bubble, col, reply);
+      renderReply(bubble, col, reply, userText);
       if (hasReply) conversation.push({ role: "bot", text: reply });
     } catch (err) {
       clearTimeout(timer);
@@ -910,7 +847,6 @@
   }
   function setWelcome(show) {
     welcomeEl.classList.toggle("is-hidden", !show);
-    appEl.classList.toggle("is-welcome", show && conversation.length === 0);
     if (!show && !mapViewEl.hidden) return;
     setActiveNav(show ? "home" : "ask");
   }
@@ -936,7 +872,7 @@
     inputEl.value = text; autoGrow(); updateCounter(); refreshSendState();
     if (scrollTarget) {
       const t = $(scrollTarget);
-      if (t && panelSlot.contains(t)) { t.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" }); }
+      if (t && asideSlot.contains(t)) t.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
     }
     inputEl.focus({ preventScroll: !!scrollTarget });
     inputEl.setSelectionRange(text.length, text.length);
@@ -950,11 +886,11 @@
     else if (el.dataset.fill !== undefined) fillPrompt(el.dataset.fill, el.dataset.scroll);
     else if (el.dataset.view === "home") goHome();
     else if (el.dataset.view === "ask") goAsk();
-    else if (el.dataset.view === "map") { showView("map"); if (el.classList.contains("qa-card")) mapSearchEl.focus({ preventScroll: true }); }
+    else if (el.dataset.view === "map") { showView("map"); if (el.classList.contains("starter")) mapSearchEl.focus({ preventScroll: true }); }
     if (sidebarEl.classList.contains("is-open")) setDrawer(false, /*refocusMenu*/ false);
   });
 
-  // ---------------- Drawer (sidebar below 1200px) ----------------
+  // ---------------- Drawer (sidebar below 1100px) ----------------
   function setDrawer(open, refocusMenu = true) {
     sidebarEl.classList.toggle("is-open", open);
     scrimEl.classList.toggle("is-open", open);
@@ -969,16 +905,16 @@
     if (e.key === "Escape" && sidebarEl.classList.contains("is-open")) setDrawer(false);
   });
 
-  // Desktop: panel lives in the grid's right column. Below 1200px it moves
-  // under the quick actions so the main column is the single scroller.
-  const desktopMQ = window.matchMedia("(min-width: 1200px)");
-  function placePanel() {
-    if (desktopMQ.matches) { if (panelEl.parentElement !== shellEl) shellEl.appendChild(panelEl); }
-    else if (panelEl.parentElement !== panelSlot) panelSlot.appendChild(panelEl);
+  // Desktop: the Upcoming aside is the grid's right column. Below 1100px it
+  // moves under the starters so the main column is the single scroller.
+  const desktopMQ = window.matchMedia("(min-width: 1100px)");
+  function placeAside() {
+    if (desktopMQ.matches) { if (asideEl.parentElement !== shellEl) shellEl.appendChild(asideEl); }
+    else if (asideEl.parentElement !== asideSlot) asideSlot.appendChild(asideEl);
     if (desktopMQ.matches && sidebarEl.classList.contains("is-open")) setDrawer(false, false);
   }
-  desktopMQ.addEventListener ? desktopMQ.addEventListener("change", placePanel) : desktopMQ.addListener(placePanel);
-  placePanel();
+  desktopMQ.addEventListener ? desktopMQ.addEventListener("change", placeAside) : desktopMQ.addListener(placeAside);
+  placeAside();
 
   // ---------------- Upcoming events (GET /api/upcoming-events) ----------------
   // Public school-calendar highlights + featured events + assembly/tutorial/
@@ -990,8 +926,8 @@
     if (!hhmm) return "";
     const [h, m] = hhmm.split(":").map(Number);
     if (Number.isNaN(h)) return hhmm;
-    const ampm = h >= 12 ? "PM" : "AM";
-    return ((h % 12) || 12) + ":" + String(m || 0).padStart(2, "0") + " " + ampm;
+    const ampm = h >= 12 ? "pm" : "am";
+    return ((h % 12) || 12) + (m ? ":" + String(m).padStart(2, "0") : "") + " " + ampm;
   }
   function fmtShortDate(iso) {
     const [, mm, dd] = iso.split("-").map(Number);
@@ -999,20 +935,13 @@
   }
   function eventItem(ev) {
     const li = document.createElement("li"); li.className = "event";
-    const [, mm, dd] = ev.date.split("-").map(Number);
-    const d = document.createElement("div"); d.className = "event__date";
-    d.innerHTML = '<span class="event__mon"></span><span class="event__day"></span>';
-    d.querySelector(".event__mon").textContent = MONTHS[(mm || 1) - 1];
-    d.querySelector(".event__day").textContent = dd || "";
-    const body = document.createElement("div");
-    const n = document.createElement("div"); n.className = "event__name"; n.textContent = ev.title;
-    const meta = document.createElement("div"); meta.className = "event__meta";
     const multiDay = ev.end_date && ev.end_date !== ev.date;
-    let when = ev.all_day ? "All day" : [fmtTime(ev.start_time), fmtTime(ev.end_time)].filter(Boolean).join(" – ");
-    if (multiDay) when = (ev.all_day ? "Until " : when + " · until ") + fmtShortDate(ev.end_date);
-    if (when) { const s = document.createElement("span"); s.innerHTML = ICON_CLOCK; s.append(when); meta.appendChild(s); }
-    if (ev.is_special) { const s = document.createElement("span"); s.className = "event__tag"; s.textContent = "Special event"; meta.appendChild(s); }
-    body.append(n, meta); li.append(d, body);
+    const date = document.createElement("div"); date.className = "event__date";
+    date.textContent = fmtShortDate(ev.date) + (multiDay ? " – " + fmtShortDate(ev.end_date) : "");
+    const name = document.createElement("div"); name.className = "event__name"; name.textContent = ev.title;
+    li.append(date, name);
+    const when = ev.all_day ? "" : [fmtTime(ev.start_time), fmtTime(ev.end_time)].filter(Boolean).join(" – ");
+    if (when) { const t = document.createElement("div"); t.className = "event__time"; t.textContent = when; li.appendChild(t); }
     return li;
   }
   function renderEvents(list) {
@@ -1020,7 +949,7 @@
     eventsEl.setAttribute("aria-busy", "false");
     if (!list.length) {
       const p = document.createElement("li"); p.className = "events-empty";
-      p.textContent = "Nothing special in the next two weeks. See the full calendar for everything else.";
+      p.textContent = "Nothing scheduled in the next two weeks.";
       eventsEl.appendChild(p); return;
     }
     list.forEach(ev => eventsEl.appendChild(eventItem(ev)));
@@ -1035,7 +964,7 @@
       eventsEl.innerHTML = "";
       eventsEl.setAttribute("aria-busy", "false");
       const p = document.createElement("li"); p.className = "events-empty";
-      p.textContent = "Couldn’t load events right now. The full calendar is on the official site.";
+      p.textContent = "Couldn’t load events right now.";
       eventsEl.appendChild(p);
     }
   }
@@ -1110,7 +1039,6 @@
     }
   });
 
-  appEl.classList.add("is-welcome");
   updateCounter(); refreshSendState(); autoGrow();
 </script>
 </body>
