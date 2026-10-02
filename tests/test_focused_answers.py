@@ -87,7 +87,7 @@ def test_time_question_still_uses_model_with_time_data(monkeypatch):
 
 def test_missing_and_different_group_menus_are_not_invented_or_merged():
     missing = bot.render_menu_answer([result([])])
-    assert "Menu unavailable" in missing
+    assert "don't have the lunch menu for Friday yet" in missing
     different = bot.render_menu_answer([result([row(menu="Fish", grades=[11]), row(menu=None, grades=[12])])])
     assert "Grade 11" in different and "Grade 12" in different
     assert "[Fish]" in different and "Menu unavailable" in different
