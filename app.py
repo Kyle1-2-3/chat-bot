@@ -316,6 +316,7 @@ Schema:
       "intent": "GREETING" | "MEAL" | "MEALS_DAY" | "SCHEDULE" | "AFTERNOON" | "PERSONAL_ACTIVITY" | "PERSONAL_SCHOOL" | "SCHOOL_INFO" | "SCHOOL_BREAKS" | "MEAL_SIGNIN" | "SIGNIN_SUMMARY" | "GRADE_GROUP" | "BEDTIME" | "EVENT_SEARCH" | "LOCATION" | "UNKNOWN",
       "day_ref": "TODAY" | "TOMORROW" | "DAY_AFTER_TOMORROW" | "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY" | "ANY",
       "meal_type": "BREAKFAST" | "LUNCH" | "DINNER" | "BRUNCH" | "AFTERNOON_SNACK" | null,
+      "meal_focus": "MENU" | "TIMES" | "MENU_AND_TIMES",
       "grade": <integer 8-12 or null>,
       "event_name": "ASSEMBLY" | "TUTORIAL" | "ADVISORY" | null,
       "school_query": <concise English topic for SCHOOL_INFO/SCHOOL_BREAKS, otherwise null>,
@@ -325,6 +326,7 @@ Schema:
 }
 
 Rules for each request:
+- Classify only what was actually asked; never add related questions or intents.
 - Greeting/small talk only => GREETING
 - School vacations, holidays, leave dates, midterm breaks, next break, days until
   a break, and returning to campus or resuming classes after a break => SCHOOL_BREAKS.
@@ -361,6 +363,14 @@ Rules for each request:
   website background descriptions must not override the live schedule.
 - "today's meals", "what are meals today" => MEALS_DAY
 - "what's for lunch friday" => MEAL
+- For MEAL/MEALS_DAY, meal_focus is MENU by default. "What's for lunch?",
+  "tomorrow's meals", "내일 점심 뭐야" ask only for food, not serving times or sign-in.
+  "When is lunch?", "what time is dinner?", "점심 몇 시야" => meal_focus TIMES.
+  "What's for lunch and when is it served?" => meal_focus MENU_AND_TIMES.
+  Use MEALS_DAY for all meal times when no individual meal is specified.
+  Sign-in is a separate MEAL_SIGNIN request ONLY if explicitly asked about it.
+  Resolve follow-ups from context: "and tomorrow?" keeps the prior meal_focus;
+  "what time?" after a menu question changes meal_focus to TIMES.
 - "schedule for monday", "what blocks tomorrow" => SCHEDULE
 - General afternoon rules, art/sport days, the common ART blocks 1–4 or the
   general number of arts per student => AFTERNOON. Examples: "afternoon schedule
@@ -474,6 +484,9 @@ def validate_request(obj: dict) -> dict:
         "grade": grade,
         "event_name": event_name,
     }
+    if intent in {"MEAL", "MEALS_DAY"}:
+        focus = str(obj.get("meal_focus", "MENU")).upper()
+        validated["meal_focus"] = focus if focus in {"MENU", "TIMES", "MENU_AND_TIMES"} else "MENU"
     if intent in {"SCHOOL_INFO", "SCHOOL_BREAKS"}:
         school_query = obj.get("school_query")
         validated["school_query"] = school_query.strip()[:240] if isinstance(school_query, str) else ""
@@ -780,6 +793,9 @@ ANSWER_SYSTEM = """
 You are a friendly school chatbot.
 
 IMPORTANT RULES:
+- Answer only the information requested in the current question. Available data
+  is context, not a checklist to recite. Do not add related rules, reminders,
+  serving times, sign-in requirements, suggested questions or offers of more help.
 - Use ONLY the provided JSON data.
 - Do not invent schedules, meals, sign-in rules, block names, or times.
 - If the data is missing, clearly say you do not have that information.
@@ -788,7 +804,7 @@ IMPORTANT RULES:
   own day_name; some results (e.g. LOCATION) have no day at all.
 
 STYLE:
-- Friendly, natural, concise.
+- Direct and brief. Start with the answer; omit greetings and introductory filler.
 - Short paragraphs are okay.
 - Bullet points are okay.
 - Always mention the actual day_name when the result has one; if a result has
@@ -820,7 +836,7 @@ SPECIAL RULES:
   and do not assume normal classes up to departure if rows are missing.
   return_date_unknown means summer has started but the return date and regular
   timetable are unconfirmed; do not declare a confirmed school-closure interval.
-  State the available return and class-resumption dates and cite source_url.
+  State return or class-resumption dates only if asked; cite source_url.
 - For SCHOOL_INFO:
   - Answer only facts explicitly supported by the supplied records. A matching
     search term alone does NOT establish the answer. If there is no direct
@@ -862,20 +878,16 @@ SPECIAL RULES:
   - Use the names from "menu_items" for the dishes; do not also print the raw
     "menu_content" text separately (it is the same dishes, just unsplit).
 - For MEAL:
-  - Respect each row's grade_ids and requires_signin. Do not apply Grade 11's
-    meal sign-in requirement to Grade 12. Focus on the requested grade if given.
-  - State the menu once, then give the time(s) and which group each time applies to.
-  - If the groups (e.g. Junior/Senior) share the SAME menu, say the menu only ONCE
-    and just list each group's time — do NOT repeat the menu for each group.
-  - Only if the menus actually differ, give each group its own menu and time.
+  - Answer only meal_focus: MENU = dishes only; TIMES = serving times only;
+    MENU_AND_TIMES = both. Never add sign-in rules to these results.
+  - State identical menus once. Mention groups only when the requested detail
+    differs between groups. Focus on the requested grade if given.
 - For MEALS_DAY:
-  - Respect grade_ids and requires_signin as for MEAL. Equal serving times/menus
-    do not imply equal sign-in requirements.
-  - Organize by meal type.
-  - Within a meal, if groups share the same menu, state it once and list the times
-    (do not repeat the menu per group).
+  - Follow meal_focus exactly as for MEAL. Use one compact bullet per meal type,
+    with the menu once when shared. No unrequested serving times or sign-in rules.
 - For SCHEDULE:
-  - First give the available block order from BLOCK rows, then the timeline.
+  - For block order alone, give only the ordered block letters. For a specific
+    block/event, answer only that item. Give the timeline only for a schedule request.
   - EVENT rows are special events: show their exact event_name and time under
     Events. all_day=1 means all day; do not invent a clock time for it.
   - Do not invent missing blocks or assume an empty slot is a free period.
@@ -912,21 +924,23 @@ SPECIAL RULES:
 - For MEAL_SIGNIN:
   - Respect grade_ids and requires_signin on every row. Grades in
     meal_signin_exempt_grades have no meal sign-ins on any day; for Grade 12,
-    clearly say no meal sign-in is required and house sign-ins still apply.
+    clearly say no meal sign-in is required. Do not append house rules unless asked.
   - When no grade is given, distinguish Grade 11 from the exempt Grade 12,
     rather than saying all Seniors must sign in.
-  - Include a Dining Hall sign-in time range only when sign-in is required.
+  - Include a Dining Hall sign-in time range only when the user asks when to sign in
+    and sign-in is required. A yes/no question needs only the applicable requirement.
     Serving times are not sign-in requirements for exempt students.
 - For SIGNIN_SUMMARY:
-  - Show dorm sign-in times.
+  - For a house/dorm-only question, show only dorm sign-in times. Show both house
+    and meal sign-ins only for a general/all-sign-ins question.
   - Respect the grade_ids and group_name on every row. Grade 11 and Grade 12
     can have different times; never merge them into one Senior sign-in time.
     If grade is given, keep the answer focused on that grade. If no grade is
     given, show all applicable groups/grades, including any separate exception.
   - If a dorm sign-in has no start_time but has a "note", state the note instead of a time (do not invent a clock time).
-  - Show meal sign-ins that require sign-in.
+  - When meal sign-ins are requested, show only those that require sign-in.
   - Grades in meal_signin_exempt_grades have no meal sign-ins. For Grade 12,
-    show only the house sign-ins and briefly state that no meal sign-ins apply.
+    show only the house sign-ins; mention the meal exemption only if meals were asked about.
     Do not invent a dining sign-in because a meal is served at that time.
 - For GRADE_GROUP:
   - State which group (Junior/Senior) the grade is in using group_name.
@@ -937,7 +951,7 @@ SPECIAL RULES:
   - If has_rule is true but bedtime is null, say that grade has no set bedtime.
   - If has_rule is false (and grade given), say you don't have a bedtime for that grade.
 - For GREETING:
-  - Greet back and briefly say what the user can ask.
+  - Greet briefly without adding a list of suggested topics.
 - For LOCATION:
   - Tell the user every building can be found on the campus map: open it with the
     Campus button (left sidebar on desktop, menu on mobile) and search the
@@ -985,7 +999,73 @@ LOCATION_REPLY = (
     "building name there."
 )
 
+def focused_answer_results(classifications: list[dict], results: list[dict]) -> list[dict]:
+    """Keep unrequested meal details out of the answer model's payload."""
+    focused = []
+    for index, original in enumerate(results):
+        result = dict(original)
+        intent = result.get("type")
+        if intent in {"MEAL", "MEALS_DAY"}:
+            cls = classifications[index] if index < len(classifications) else {}
+            focus = validate_request({**cls, "intent": intent})["meal_focus"]
+            result["meal_focus"] = focus
+            allowed = {"type_name", "group_name", "grade_ids"}
+            if focus != "TIMES":
+                allowed |= {"menu_content", "menu_items"}
+            if focus != "MENU":
+                allowed |= {"start_time", "end_time"}
+            result["rows"] = [{k: v for k, v in row.items() if k in allowed}
+                              for row in result.get("rows", [])]
+        elif intent == "MEAL_SIGNIN":
+            result["rows"] = [{k: v for k, v in row.items()
+                               if k not in {"menu_content", "menu_items"}}
+                              for row in result.get("rows", [])]
+        elif intent == "SIGNIN_SUMMARY":
+            result["meal_signins"] = [{k: v for k, v in row.items()
+                                       if k not in {"menu_content", "menu_items"}}
+                                      for row in result.get("meal_signins", [])]
+        focused.append(result)
+    return focused
+
+
+def render_menu_answer(results: list[dict]) -> str:
+    """A menu lookup needs no generated prose, serving times or sign-in advice."""
+    def escape(value):
+        return re.sub(r"([\\`*_\[\]<>])", r"\\\1", str(value))
+
+    sections = []
+    for result in results:
+        meals = {}
+        for row in result.get("rows", []):
+            meal = row.get("type_name") or result.get("meal_type") or "Meal"
+            items = row.get("menu_items") or menu_search_items(row.get("menu_content"))
+            key = tuple((item["name"], item["search_url"]) for item in items)
+            groups = meals.setdefault(meal, {}).setdefault(key, set())
+            if row.get("grade_ids"):
+                groups.add("Grade " + ", ".join(map(str, row["grade_ids"])))
+            elif row.get("group_name"):
+                groups.add(row["group_name"])
+        if not meals:
+            meal = (result.get("meal_type") or "meals").replace("_", " ").lower()
+            sections.append(f"{result['day_name']} {meal}: Menu unavailable.")
+            continue
+        lines = [f"**{result['day_name']}**"]
+        for meal, menus in meals.items():
+            for items, groups in menus.items():
+                label = escape(meal.replace("_", " ").title())
+                if len(menus) > 1 and groups:
+                    label += " (" + escape(" / ".join(sorted(groups))) + ")"
+                dishes = "; ".join(f"[{escape(name)}]({url})" for name, url in items)
+                lines.append(f"- **{label}:** {dishes or 'Menu unavailable.'}")
+        sections.append("\n".join(lines))
+    return "\n\n".join(sections)
+
+
 def generate_answer(user_msg: str, classifications: list[dict], results: list[dict]) -> str:
+    results = focused_answer_results(classifications, results)
+    if results and all(r["type"] in {"MEAL", "MEALS_DAY"}
+                       and r["meal_focus"] == "MENU" for r in results):
+        return render_menu_answer(results)
     # Day reflects today() (so FAKE_TODAY works); time-of-day stays real-clock.
     server_day_name = calendar.day_name[today().isoweekday() - 1]
     server_time = datetime.now(SCHOOL_TZ).strftime("%H:%M")
