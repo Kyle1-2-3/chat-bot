@@ -139,24 +139,14 @@
   }
   .main-inner { width: 100%; max-width: var(--content-w); margin: 0 auto; padding: 24px 32px 24px; }
 
-  /* Intro: one photo band carrying the crest and a short line. */
+  /* Intro: a quiet band carrying the crest and a short line. */
   .welcome.is-hidden { display: none; }
   .intro {
     position: relative; overflow: hidden; border-radius: 12px;
-    padding: 26px 26px 24px; min-height: 148px;
+    padding: 24px 26px 22px;
     display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
     background: var(--bg-2);
   }
-  .intro__photo {
-    position: absolute; inset: 0; z-index: 0;
-    background-image: url("campus-hero.webp"); background-size: cover; background-position: center 45%;
-    opacity: 0.42; filter: saturate(0.8);
-  }
-  .intro__shade {
-    position: absolute; inset: 0; z-index: 0;
-    background: linear-gradient(180deg, rgba(15,15,17,0.15) 0%, rgba(15,15,17,0.72) 70%, rgba(15,15,17,0.9) 100%);
-  }
-  .intro__row, .intro__sub { position: relative; z-index: 1; }
   .intro__row { display: flex; align-items: center; gap: 10px; }
   .intro__crest { width: 26px; height: 26px; }
   .intro__title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
@@ -435,8 +425,6 @@
         <div class="main-inner">
           <div class="welcome" id="welcome">
             <section class="intro" aria-labelledby="introTitle">
-              <div class="intro__photo" aria-hidden="true"></div>
-              <div class="intro__shade" aria-hidden="true"></div>
               <div class="intro__row">
                 <img class="intro__crest" src="crest.png" alt="" />
                 <h1 class="intro__title" id="introTitle">Brentwood Assistant</h1>
