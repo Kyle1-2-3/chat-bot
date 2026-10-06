@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
@@ -987,24 +987,22 @@ def generate_answer(user_msg: str, classifications: list[dict], results: list[di
 # ---------------------------
 # Routes
 # ---------------------------
-@app.route("/chat", methods=["POST"])
-@limiter.limit("10 per minute; 300 per day")  # each chat costs up to two Gemini calls
-def chat():
-    req_id = str(uuid.uuid4())[:8]
-    data = request.get_json(silent=True) or {}
-    user_msg = (data.get("message", "") or "").strip()
-    memory = (data.get("memory", "") or "")
+def chat_events(user_msg: str, memory: str, req_id: str):
+    """The same answer pipeline for JSON and progress-stream clients.
 
-    if len(user_msg) > 500:
-        return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
-
+    Status events describe real work, never generated reasoning or fake searches.
+    The browser decides when to reveal them; there are no sleeps on the server.
+    """
     logger.debug("[%s] USER: %s", req_id, user_msg)
 
     if DEV_TRIGGER in user_msg:
         logger.info("[%s] dev trigger: raw Gemini chat", req_id)
         raw_msg = user_msg.replace(DEV_TRIGGER, " ").strip() or "Hi!"
-        return jsonify({"reply": generate_raw_answer(raw_msg, memory)})
+        yield "status", {"stage": "writing"}
+        yield "reply", {"reply": generate_raw_answer(raw_msg, memory)}
+        return
 
+    yield "status", {"stage": "understanding"}
     classifications = classify_query(user_msg, memory)
 
     logger.debug("[%s] CLASSIFICATIONS: %s", req_id, classifications)
@@ -1019,24 +1017,30 @@ def chat():
 
     if not actionable:
         if any(c.get("intent") == "GREETING" for c in classifications):
+            yield "status", {"stage": "writing"}
             reply = generate_answer(user_msg, classifications, [{"type": "GREETING"}])
             if SERVER_TAG:
                 reply = f"{SERVER_TAG} {reply}"
-            return jsonify({"reply": reply})
+            yield "reply", {"reply": reply}
+            return
 
         friendly = "Hey 🙂 I’m not fully sure what you want. You can ask about meals, schedules, sign-in times, school staff, facilities, or student services."
         if SERVER_TAG:
             friendly = f"{SERVER_TAG} {friendly}"
-        return jsonify({"reply": friendly})
+        yield "reply", {"reply": friendly}
+        return
 
+    yield "status", {"stage": "checking"}
     try:
         results = [build_result_from_classification(c, user_msg) for c in actionable]
     except Exception:
         logger.exception("[%s] build_result failed", req_id)
-        return jsonify({"reply": "Sorry — I had trouble reading the school data."}), 500
+        yield "error", {"reply": "Sorry — I had trouble reading the school data."}
+        return
 
     logger.debug("[%s] RESULTS: %s", req_id, results)
 
+    yield "status", {"stage": "writing"}
     if all(r["type"] == "LOCATION" for r in results):
         reply = LOCATION_REPLY
     elif all(r["type"] == "PERSONAL_ACTIVITY" for r in results):
@@ -1049,7 +1053,42 @@ def chat():
     if SERVER_TAG:
         reply = f"{SERVER_TAG} {reply}"
 
-    return jsonify({"reply": reply})
+    yield "reply", {"reply": reply}
+
+
+@app.route("/chat", methods=["POST"])
+@limiter.limit("10 per minute; 300 per day")
+def chat():
+    req_id = str(uuid.uuid4())[:8]
+    data = request.get_json(silent=True) or {}
+    user_msg = (data.get("message", "") or "").strip()
+    memory = (data.get("memory", "") or "")
+
+    if len(user_msg) > 500:
+        return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
+
+    events = chat_events(user_msg, memory, req_id)
+    if request.accept_mimetypes.best == "text/event-stream":
+        def stream():
+            try:
+                for event, payload in events:
+                    yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            except Exception:
+                logger.exception("[%s] chat stream failed", req_id)
+                yield 'event: error\ndata: {"reply":"Sorry — something went wrong. Please try again."}\n\n'
+            finally:
+                events.close()
+
+        return Response(stream_with_context(stream()), mimetype="text/event-stream", headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        })
+
+    for event, payload in events:
+        if event == "reply":
+            return jsonify(payload)
+        if event == "error":
+            return jsonify(payload), 500
 
 @app.route("/")
 def index():

@@ -21,6 +21,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test tests/chat-progress.test.cjs
       - run: pip install -r requirements.txt
       - run: python set_up_db.py
       - run: python -m pytest tests/ -q
