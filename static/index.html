@@ -223,10 +223,12 @@
   .copy-btn:hover { color: var(--text); }
   .copy-btn .icon { width: 13px; height: 13px; }
 
-  .typing { display: inline-flex; align-items: center; gap: 5px; padding: 6px 1px; }
-  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite ease-in-out both; }
-  .typing span:nth-child(2) { animation-delay: 0.18s; }
-  .typing span:nth-child(3) { animation-delay: 0.36s; }
+  .typing { display: inline-flex; align-items: center; gap: 12px; padding: 6px 1px; min-height: 28px; }
+  .typing-dots { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite ease-in-out both; }
+  .typing-dot:nth-child(2) { animation-delay: 0.18s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.36s; }
+  .typing-label { font-size: 14px; line-height: 1.6; color: var(--muted); }
   @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
 
   .error-note { color: var(--muted); margin: 0; }
@@ -365,7 +367,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .main-scroll { scroll-behavior: auto; }
-    .typing span { animation: none; opacity: 0.7; transform: scale(0.85); }
+    .typing-dot { animation: none; opacity: 0.7; transform: scale(0.85); }
     .send:not(:disabled):active { transform: none; }
     .map-pin__dot { animation: none; }
     .sidebar, .scrim { transition: none; }
@@ -536,11 +538,13 @@
     </aside>
   </div>
 
+<script src="/chat-progress.js"></script>
 <script>
   // ============================================================
   // API: Flask serves @app.route("/chat", POST) and GET /api/upcoming-events
   // (public school-calendar highlights). Behind nginx that proxies "/api",
-  // change API_ENDPOINT to "/api/chat". POST {message,memory}->{reply}
+  // change API_ENDPOINT to "/api/chat". POST {message,memory}->{reply}.
+  // Accept: text/event-stream opts into status events followed by the reply.
   // ============================================================
   const API_ENDPOINT = "/chat";
   const EVENTS_ENDPOINT = "/api/upcoming-events";
@@ -635,13 +639,34 @@
     return { turn, bubble, col };
   }
 
-  function showTyping(bubble) {
+  function showTyping(bubble, userText) {
+    const korean = /[가-힣]/.test(userText);
+    const labels = korean ? {
+      preparing: "답변 준비 중…", understanding: "질문 확인 중…",
+      checking: "학교 정보 확인 중…", writing: "답변 작성 중…",
+    } : {
+      preparing: "Preparing a reply…", understanding: "Understanding your question…",
+      checking: "Checking school information…", writing: "Writing a reply…",
+    };
     const t = document.createElement("div");
     t.className = "typing"; t.setAttribute("role", "status");
-    t.setAttribute("aria-label", "Brentwood Assistant is typing");
-    t.innerHTML = "<span></span><span></span><span></span>";
+    t.setAttribute("aria-label", labels.preparing);
+    t.setAttribute("aria-atomic", "true");
+    t.innerHTML = '<span class="typing-dots" aria-hidden="true"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></span>';
+    const label = document.createElement("span");
+    label.className = "typing-label";
+    label.hidden = true;
+    t.appendChild(label);
     bubble.appendChild(t);
     scrollToBottom();
+    return (stage) => {
+      const text = labels[stage] || labels.preparing;
+      if (!label.hidden && label.textContent === text) return;
+      t.removeAttribute("aria-label");
+      label.textContent = text;
+      label.hidden = false;
+      scrollToBottom();
+    };
   }
 
   // Open links from replies in a new tab so a student never loses the chat.
@@ -731,7 +756,7 @@
   async function runRequest(userText) {
     inFlight = true; refreshSendState();
     const { bubble, col } = makeBotTurn();
-    showTyping(bubble);
+    const waiting = ChatProgress.createWaitState(showTyping(bubble, userText));
 
     const memory = buildMemory(userText);
     const controller = new AbortController();
@@ -740,21 +765,23 @@
     try {
       const res = await fetch(API_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
         body: JSON.stringify({ message: userText, memory }),
         signal: controller.signal,
       });
+      const data = await ChatProgress.readReply(res, stage => waiting.update(stage));
       clearTimeout(timer);
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
+      await waiting.finish();
       const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());
       const reply = hasReply ? data.reply : "I’m sorry — I didn’t catch that. Could you try rephrasing?";
       renderReply(bubble, col, reply);
       if (hasReply) conversation.push({ role: "bot", text: reply });
     } catch (err) {
       clearTimeout(timer);
+      await waiting.finish();
       renderError(bubble, col, userText);
     } finally {
+      clearTimeout(timer);
       inFlight = false; refreshSendState();
     }
   }
