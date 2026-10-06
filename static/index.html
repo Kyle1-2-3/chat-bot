@@ -17,17 +17,17 @@
 <style>
   /* ============================================================
      Brentwood Assistant
-     Chat first. Dark, quiet surfaces; red only for the primary action,
-     the selected navigation item and links. Structure comes from spacing
-     and hairline dividers rather than boxes.
-     Layout: [sidebar] [intro + conversation + composer] [upcoming]
+     An assistant, not a portal: one conversation column, a pill composer,
+     a greeting with template questions while the thread is empty, and the
+     school calendar one tap away in a side panel. No section navigation.
+     Layout: [topbar] [conversation + composer]  (+ Upcoming panel, + map view)
      ============================================================ */
   :root {
     --bg:      #0f0f11;
-    --bg-2:    #151517;
-    --bg-3:    #1c1c1f;
+    --bg-2:    #171719;
+    --bg-3:    #1f1f23;
     --hover:   rgba(255, 255, 255, 0.05);
-    --header:  rgba(15, 15, 17, 0.88);
+    --header:  rgba(15, 15, 17, 0.82);
 
     --red:       #c8102e;
     --red-hover: #d9203d;
@@ -45,9 +45,8 @@
     --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
     --radius: 10px;
-    --sidebar-w: 220px;
-    --aside-w: 272px;
-    --content-w: 820px;
+    --content-w: 760px;
+    --panel-w: 340px;
     --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--line-strong);
   }
 
@@ -58,7 +57,11 @@
   html, body { margin: 0; padding: 0; height: 100%; overflow-anchor: none; }
   body {
     font-family: var(--font); font-size: 15px; line-height: 1.5;
-    color: var(--text); background: var(--bg); color-scheme: dark;
+    color: var(--text); color-scheme: dark;
+    /* soft tint at the top of the page, the way Gemini / ChatGPT light the empty state */
+    background:
+      radial-gradient(70% 55% at 50% -10%, rgba(200, 16, 46, 0.14), rgba(200, 16, 46, 0) 70%),
+      var(--bg);
     -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
   button { font-family: inherit; font-size: inherit; }
@@ -71,115 +74,80 @@
   }
   .skip-link:focus { top: 12px; }
   .icon { width: 18px; height: 18px; flex: 0 0 auto; }
-  .label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
 
-  /* ---------------- Shell grid ----------------
+  /* ---------------- Shell ----------------
      Fixed to the visible viewport (minus the on-screen keyboard, --kb, fed by
      the VisualViewport JS): the document itself never scrolls, the main column
      does. Keeps WebKit from panning the whole page when the keyboard opens. */
   .shell {
-    display: grid; height: 100%; height: calc(100dvh - var(--kb, 0px));
-    grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--aside-w);
-    grid-template-rows: minmax(0, 1fr);
-    grid-template-areas: "side main aside";
-  }
-  .sidebar { grid-area: side; }
-  .app, .map-view { grid-area: main; min-width: 0; }
-  .aside { grid-area: aside; }
-  .topbar { display: none; grid-area: top; }
-
-  /* ---------------- Sidebar ---------------- */
-  .sidebar {
     display: flex; flex-direction: column;
-    background: var(--bg-2); border-right: 1px solid var(--line);
-    padding: 18px 12px calc(14px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
-    overflow-y: auto;
+    height: 100%; height: calc(100dvh - var(--kb, 0px));
   }
-  .brand { display: block; width: 100%; padding: 8px 16px 22px; margin: 0; background: transparent; border: none; cursor: pointer; border-radius: 8px; }
-  .brand__logo { display: block; width: 100%; max-width: 124px; height: auto; margin: 0 auto; }
-  .nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
-  .nav-item {
-    width: 100%; display: flex; align-items: center; gap: 11px;
-    padding: 9px 12px; border: none; border-radius: 8px; min-height: 40px;
-    background: transparent; color: var(--muted); cursor: pointer; text-align: left;
-    font-size: 14px; font-weight: 500;
+
+  /* ---------------- Top bar ---------------- */
+  .topbar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 56px;
+    padding: 0 calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left));
+    padding-top: env(safe-area-inset-top);
+  }
+  .brand, .tb-btn {
+    border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 10px;
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
     transition: background 120ms ease, color 120ms ease;
   }
-  .nav-item:hover { background: var(--hover); color: var(--text); }
-  .nav-item.is-active { background: var(--hover); color: var(--text); }
-  .nav-item.is-active .icon { color: var(--red); }
-  .sidebar__spacer { flex: 1 1 auto; }
-  .sidebar__rule { border: 0; border-top: 1px solid var(--line); margin: 12px 8px; }
-
-  /* ---------------- Topbar (tablet / mobile only) ---------------- */
-  .topbar {
-    align-items: center; gap: 6px; height: 54px;
-    padding: 0 10px 0 calc(6px + env(safe-area-inset-left));
-    background: var(--header); border-bottom: 1px solid var(--line);
-    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
-  }
-  .menu-btn, .topbar__brand, .home-btn { border: none; background: transparent; color: var(--text); cursor: pointer; border-radius: 8px; }
-  .menu-btn { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; }
-  .menu-btn .icon { width: 22px; height: 22px; }
-  .topbar__brand { display: flex; align-items: center; gap: 9px; flex: 1 1 auto; min-width: 0; padding: 6px 8px; text-align: left; font-size: 15px; font-weight: 600; }
-  .topbar__brand img { width: 22px; height: 22px; }
-  .home-btn { padding: 8px 12px; min-height: 40px; font-size: 14px; font-weight: 500; color: var(--muted); }
-  .menu-btn:hover, .topbar__brand:hover, .home-btn:hover { background: var(--hover); color: var(--text); }
-  .scrim {
-    position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.55);
-    opacity: 0; pointer-events: none; transition: opacity 200ms ease;
-  }
-  .scrim.is-open { opacity: 1; pointer-events: auto; }
+  .brand { padding: 6px 10px 6px 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand img { width: 26px; height: 26px; }
+  .brand:hover { background: var(--hover); }
+  .topbar__spacer { flex: 1 1 auto; }
+  .tb-btn { padding: 8px 12px; font-size: 14px; font-weight: 500; color: var(--muted); }
+  .tb-btn:hover { background: var(--hover); color: var(--text); }
+  .tb-btn.is-active { color: var(--text); }
+  .tb-btn .icon { width: 17px; height: 17px; }
 
   /* ---------------- Main column ---------------- */
-  .app { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+  .app { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .main-scroll {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-anchor: none;
     -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
   }
-  .main-inner { width: 100%; max-width: var(--content-w); margin: 0 auto; padding: 24px 32px 24px; }
+  .main-inner {
+    width: 100%; max-width: var(--content-w); margin: 0 auto; min-height: 100%;
+    display: flex; flex-direction: column; padding: 8px 24px 16px;
+  }
 
-  /* Intro: one photo band carrying the crest and a short line. */
+  /* ---------------- Empty state: greeting + template questions + upcoming ----------------
+     Vertically centred in the column until the first message is sent. */
+  .welcome { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px 0 16px; }
   .welcome.is-hidden { display: none; }
-  .intro {
-    position: relative; overflow: hidden; border-radius: 12px;
-    padding: 26px 26px 24px; min-height: 148px;
-    display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
-    background: var(--bg-2);
-  }
-  .intro__photo {
-    position: absolute; inset: 0; z-index: 0;
-    background-image: url("campus-hero.webp"); background-size: cover; background-position: center 45%;
-    opacity: 0.42; filter: saturate(0.8);
-  }
-  .intro__shade {
-    position: absolute; inset: 0; z-index: 0;
-    background: linear-gradient(180deg, rgba(15,15,17,0.15) 0%, rgba(15,15,17,0.72) 70%, rgba(15,15,17,0.9) 100%);
-  }
-  .intro__row, .intro__sub { position: relative; z-index: 1; }
-  .intro__row { display: flex; align-items: center; gap: 10px; }
-  .intro__crest { width: 26px; height: 26px; }
-  .intro__title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
-  .intro__sub { font-size: 14px; color: var(--muted); margin: 0; max-width: 56ch; }
+  .hello { text-align: center; max-width: 34ch; }
+  .hello__crest { width: 44px; height: 44px; margin: 0 auto 14px; display: block; }
+  .hello__title { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 8px; }
+  .hello__sub { font-size: 15px; color: var(--muted); margin: 0; }
 
-  /* Conversation starters: a two-column list, hairlines instead of cards. */
-  .starters { margin: 22px 0 0; }
-  .starters__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
-  .starter {
-    width: 100%; display: flex; align-items: center; gap: 12px; min-height: 46px;
-    padding: 10px 8px; border: none; border-top: 1px solid var(--line); border-radius: 0;
-    background: transparent; color: var(--text); cursor: pointer; text-align: left;
-    font-size: 14px; font-weight: 500; line-height: 1.35;
-    transition: background 120ms ease;
+  .chips { list-style: none; margin: 26px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 640px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
+    padding: 8px 14px 8px 12px; border: 1px solid var(--line-strong); border-radius: 999px;
+    background: var(--bg-2); color: var(--text); cursor: pointer; text-align: left;
+    font-size: 14px; font-weight: 500; line-height: 1.3;
+    transition: background 120ms ease, border-color 120ms ease;
   }
-  .starter:hover { background: var(--hover); }
-  .starter:focus-visible { border-radius: 6px; }
-  .starter .icon { color: var(--muted); }
-  .starter small { display: block; font-size: 12px; font-weight: 400; color: var(--dim); margin-top: 1px; }
-  .starters__list > li:nth-last-child(-n+2) .starter { border-bottom: 1px solid var(--line); }
+  .chip:hover { background: var(--bg-3); border-color: rgba(255,255,255,0.24); }
+  .chip .icon { width: 16px; height: 16px; color: var(--muted); }
 
-  /* Tablet/mobile: the aside moves into this slot (JS). */
-  .aside-slot:empty { display: none; }
+  /* Compact calendar card: the next few public events, one tap to the full list. */
+  .upcoming { width: 100%; max-width: 520px; margin: 34px 0 0; }
+  .upcoming__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px 6px; }
+  .upcoming__title { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 0; }
+  .link-btn { border: none; background: transparent; padding: 0; cursor: pointer; font-size: 12.5px; color: var(--muted); text-decoration: none; }
+  .link-btn:hover { color: var(--text); text-decoration: underline; }
+  .upcoming__list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-2); overflow: hidden; }
+  .upcoming__list .event { padding: 10px 14px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 76px minmax(0, 1fr); column-gap: 10px; align-items: baseline; }
+  .upcoming__list .event:first-child { border-top: none; }
+  .upcoming__list .event__date { font-size: 12.5px; }
+  .upcoming__list .event__name { margin-top: 0; }
+  .upcoming__list .event__time { grid-column: 2; }
+  .upcoming__list .events-empty, .upcoming__list .skeleton { padding: 12px 14px; }
 
   /* ---------------- Conversation ---------------- */
   .thread { width: 100%; margin: 0 auto; padding-top: 8px; }
@@ -188,7 +156,7 @@
   .turn--bot { display: block; margin-bottom: 28px; }
   .bubble {
     max-width: 72%; font-size: 15px; line-height: 1.55;
-    padding: 10px 14px; border-radius: 14px; border-bottom-right-radius: 4px;
+    padding: 10px 16px; border-radius: 18px; border-bottom-right-radius: 6px;
     white-space: pre-wrap; overflow-wrap: anywhere;
     background: var(--bg-3); color: var(--text);
   }
@@ -242,79 +210,92 @@
   .retry:hover { background: var(--hover); }
   .retry .icon { width: 14px; height: 14px; }
 
-  /* ---------------- Composer ---------------- */
+  /* ---------------- Composer: a floating pill ---------------- */
   .composer-dock {
     position: sticky; bottom: 0; z-index: 20; flex: 0 0 auto;
-    background: var(--header); border-top: 1px solid var(--line);
-    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
+    background: linear-gradient(180deg, rgba(15,15,17,0) 0%, var(--bg) 38%);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .composer { width: 100%; max-width: var(--content-w); margin: 0 auto; padding: 12px 32px 10px; }
+  .composer { width: 100%; max-width: var(--content-w); margin: 0 auto; padding: 14px 24px 10px; }
   .composer__field {
     display: flex; align-items: flex-end; gap: 8px;
-    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 12px;
-    padding: 5px 5px 5px 14px; transition: border-color 0.15s ease;
+    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 28px;
+    padding: 6px 6px 6px 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    transition: border-color 0.15s ease;
   }
-  .composer__field:focus-within { border-color: rgba(255,255,255,0.28); }
+  .composer__field:focus-within { border-color: rgba(255,255,255,0.3); }
   textarea#input {
     flex: 1 1 auto; resize: none; border: none; outline: none; background: transparent; box-shadow: none;
-    font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--text);
-    padding: 9px 0; max-height: 132px; overflow-y: auto;
+    font-family: var(--font); font-size: 15.5px; line-height: 1.5; color: var(--text);
+    padding: 11px 0; max-height: 160px; overflow-y: auto;
   }
   textarea#input::placeholder { color: var(--dim); }
   .send {
-    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; border: none;
+    flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; border: none;
     background: var(--red); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer;
     transition: transform 0.12s ease, background 0.15s ease;
   }
-  .send .icon { width: 17px; height: 17px; }
+  .send .icon { width: 18px; height: 18px; }
   .send:not(:disabled):hover { background: var(--red-hover); }
   .send:not(:disabled):active { transform: scale(0.94); }
   .send:disabled { background: var(--bg-3); color: var(--dim); cursor: default; }
-  .composer__meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 4px 0; min-height: 18px; }
-  .composer__hint, .counter { font-size: 11.5px; color: var(--dim); }
-  .counter { font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; }
+  .composer__meta { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 8px 4px 0; min-height: 18px; position: relative; }
+  .composer__hint, .counter { font-size: 11.5px; color: var(--dim); text-align: center; }
+  .counter { font-variant-numeric: tabular-nums; white-space: nowrap; position: absolute; right: 8px; }
   .counter[hidden] { display: none; }
   .counter.is-warn { color: var(--warn); }
 
-  /* ---------------- Upcoming (aside) ---------------- */
-  .aside {
-    display: flex; flex-direction: column; gap: 18px;
-    border-left: 1px solid var(--line);
-    padding: 26px 22px calc(22px + env(safe-area-inset-bottom)) 22px; overflow-y: auto;
+  /* ---------------- Upcoming panel (slide-in from the right) ---------------- */
+  .scrim {
+    position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none; transition: opacity 200ms ease;
   }
-  .aside__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 4px; }
-  .aside__title { font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
-  .aside__link { font-size: 12.5px; color: var(--muted); text-decoration: none; }
-  .aside__link:hover { color: var(--text); text-decoration: underline; }
+  .scrim.is-open { opacity: 1; pointer-events: auto; }
+  .panel {
+    position: fixed; right: 0; top: 0; bottom: 0; z-index: 70; width: var(--panel-w); max-width: 88vw;
+    display: flex; flex-direction: column; gap: 16px;
+    background: var(--bg-2); border-left: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    padding: calc(14px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)) 20px;
+    overflow-y: auto;
+    transform: translateX(100%); visibility: hidden;
+    transition: transform 200ms ease, visibility 0s linear 200ms;
+  }
+  .panel.is-open { transform: translateX(0); visibility: visible; transition: transform 200ms ease; }
+  .panel__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel__title { font-size: 15px; font-weight: 600; margin: 0; }
+  .close-btn { width: 36px; height: 36px; border: none; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .close-btn:hover { background: var(--hover); color: var(--text); }
+  .panel__link { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .panel__link:hover { color: var(--text); text-decoration: underline; }
   .events { list-style: none; margin: 0; padding: 0; }
   .event { padding: 10px 0; border-top: 1px solid var(--line); }
-  .event:last-child { border-bottom: 1px solid var(--line); }
+  .events .event:last-child { border-bottom: 1px solid var(--line); }
   .event__date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .event__name { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.35; margin-top: 1px; }
   .event__time { font-size: 12.5px; color: var(--dim); margin-top: 1px; }
   .events-empty, .skeleton { font-size: 13px; color: var(--muted); margin: 0; padding: 10px 0; }
   .skeleton { height: 36px; border-radius: 6px; background: var(--hover); padding: 0; }
-  .aside__note { font-size: 12px; color: var(--dim); line-height: 1.5; margin: 0; }
-  .aside__note a { color: var(--muted); }
+  .panel__note { font-size: 12px; color: var(--dim); line-height: 1.5; margin: 0; }
+  .panel__note a { color: var(--muted); }
 
-  /* ---------------- Map view (Campus) ---------------- */
-  .map-view { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+  /* ---------------- Map view (opened from a chip) ---------------- */
+  .map-view { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .map-view[hidden] { display: none; }
   .map-head {
     flex: 0 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 12px 20px; background: var(--header); border-bottom: 1px solid var(--line);
-    -webkit-backdrop-filter: saturate(160%) blur(18px); backdrop-filter: saturate(160%) blur(18px);
+    padding: 10px 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
   .map-head h2 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; }
   #mapSearch {
     flex: 0 1 340px; min-width: 0; font-family: var(--font); font-size: 14px; color: var(--text);
-    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 12px; outline: none;
+    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 999px; padding: 8px 14px; outline: none;
   }
   #mapSearch:focus { border-color: rgba(255,255,255,0.28); box-shadow: none; }
   #mapSearch::placeholder { color: var(--dim); }
   .map-status { font-size: 13px; color: var(--dim); white-space: nowrap; }
   .map-status.is-error { color: var(--warn); }
+  .map-head .tb-btn { margin-left: auto; }
   .map-stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
   .map-canvas { position: relative; max-width: 1200px; min-width: 720px; margin: 0 auto; }
   .map-canvas img { display: block; width: 100%; border-radius: 10px; user-select: none; -webkit-user-select: none; }
@@ -335,32 +316,21 @@
     color: var(--text); font-size: 12px; font-weight: 500; white-space: nowrap;
   }
 
-  /* ---------------- Responsive ----------------
-     Tablet (<1100px): sidebar becomes a drawer; the aside moves under the
-     starters (JS relocates the node into .aside-slot). */
-  @media (max-width: 1099px) {
-    .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "top" "main"; }
-    .topbar { display: flex; }
-    .sidebar {
-      position: fixed; left: 0; top: 0; bottom: 0; z-index: 70; width: 264px; max-width: 84vw;
-      padding-top: calc(16px + env(safe-area-inset-top)); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      transform: translateX(-100%); visibility: hidden;
-      transition: transform 200ms ease, visibility 0s linear 200ms;
-    }
-    .sidebar.is-open { transform: translateX(0); visibility: visible; transition: transform 200ms ease; }
-    .aside { border-left: none; padding: 0; overflow: visible; gap: 10px; margin-top: 26px; }
-    .aside-slot { display: block; }
-  }
-  /* Mobile (<680px): single column, starters stack, input stays reachable. */
+  /* ---------------- Responsive ---------------- */
   @media (max-width: 679px) {
-    .main-inner { padding: 16px 16px 20px; }
+    .topbar { height: 52px; }
+    .brand span { font-size: 14.5px; }
+    .tb-btn span { display: none; }           /* icon-only actions on phones */
+    .tb-btn { padding: 8px; width: 40px; justify-content: center; }
+    .main-inner { padding: 4px 16px 12px; }
     .composer { padding: 10px 12px 8px; }
-    .composer__hint { display: none; }
-    .intro { padding: 20px 18px 18px; min-height: 128px; border-radius: 10px; }
-    .intro__title { font-size: 18px; }
-    .starters__list { grid-template-columns: minmax(0, 1fr); }
-    .starters__list > li:nth-last-child(-n+2) .starter { border-bottom: none; }
-    .starters__list > li:last-child .starter { border-bottom: 1px solid var(--line); }
+    .composer__field { padding-left: 16px; }
+    .composer__hint { font-size: 11px; }
+    .hello__title { font-size: 24px; }
+    .hello__crest { width: 38px; height: 38px; }
+    .chips { margin-top: 22px; }
+    .chip { font-size: 13.5px; min-height: 38px; }
+    .upcoming { margin-top: 28px; }
     .bubble { max-width: 86%; }
     .map-head { padding: 10px 12px; }
     .map-head h2 { flex: 1 0 100%; margin: 0 0 6px; }
@@ -370,7 +340,7 @@
     .typing-dot { animation: none; opacity: 0.7; transform: scale(0.85); }
     .send:not(:disabled):active { transform: none; }
     .map-pin__dot { animation: none; }
-    .sidebar, .scrim { transition: none; }
+    .panel, .scrim { transition: none; }
   }
 </style>
 </head>
@@ -378,105 +348,72 @@
   <a class="skip-link" href="#input">Skip to chat</a>
 
   <div class="shell" id="shell">
-    <!-- Tablet / mobile top bar -->
+    <!-- Top bar: brand (= new chat), then the two actions an assistant needs -->
     <header class="topbar">
-      <button type="button" class="menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-      </button>
-      <button type="button" class="topbar__brand" data-view="home" aria-label="Home">
+      <button type="button" class="brand" data-view="new" aria-label="Brentwood Assistant — new chat">
         <img src="crest.png" alt="" />
         <span>Brentwood Assistant</span>
       </button>
-      <button type="button" class="home-btn" data-view="home">Home</button>
+      <div class="topbar__spacer"></div>
+      <button type="button" class="tb-btn" id="panelBtn" data-panel="toggle" aria-controls="panel" aria-expanded="false" aria-label="Upcoming events">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        <span>Upcoming</span>
+      </button>
+      <button type="button" class="tb-btn" data-view="new" aria-label="New chat">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span>New chat</span>
+      </button>
     </header>
-    <div class="scrim" id="scrim"></div>
 
-    <!-- Sidebar (fixed on desktop, drawer below 1100px) -->
-    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-      <button type="button" class="brand" data-view="home" aria-label="Brentwood College School — home">
-        <img class="brand__logo" src="brentwood-logo-stacked.png" alt="Brentwood College School" />
-      </button>
-      <nav aria-label="Sections">
-        <ul class="nav" id="nav">
-          <li><button type="button" class="nav-item is-active" data-view="home" aria-current="page">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
-            <span>Home</span></button></li>
-          <li><button type="button" class="nav-item" data-view="ask">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <span>Ask</span></button></li>
-          <li><button type="button" class="nav-item" data-view="map">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
-            <span>Campus</span></button></li>
-          <li><button type="button" class="nav-item" data-fill="What courses can I take at Brentwood?">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8 12 3l10 5-10 5z"/><path d="M6 10.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-5.5"/><path d="M22 8v6"/></svg>
-            <span>Academics</span></button></li>
-          <li><button type="button" class="nav-item" data-fill="What clubs and activities can I join?">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg>
-            <span>Student Life</span></button></li>
-          <li><button type="button" class="nav-item" data-fill="Where can I get support at school?">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6z"/><path d="M12 9v6M9 12h6"/></svg>
-            <span>Policies &amp; Support</span></button></li>
-          <li><button type="button" class="nav-item" data-fill="When is the next school break?" data-scroll="asideEvents">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-            <span>Events</span></button></li>
-        </ul>
-      </nav>
-      <div class="sidebar__spacer"></div>
-      <hr class="sidebar__rule" />
-      <button type="button" class="nav-item" data-fill="Where can I get help?">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg>
-        <span>Help &amp; Feedback</span>
-      </button>
-    </aside>
-
-    <!-- Main column: intro + conversation -->
+    <!-- Main column: greeting / conversation + composer -->
     <div class="app" id="app">
       <main class="main-scroll" id="scroll">
         <div class="main-inner">
           <div class="welcome" id="welcome">
-            <section class="intro" aria-labelledby="introTitle">
-              <div class="intro__photo" aria-hidden="true"></div>
-              <div class="intro__shade" aria-hidden="true"></div>
-              <div class="intro__row">
-                <img class="intro__crest" src="crest.png" alt="" />
-                <h1 class="intro__title" id="introTitle">Brentwood Assistant</h1>
-              </div>
-              <p class="intro__sub">Ask about block order, meals, sign-in times, clubs, support and the rest of school life.</p>
+            <section class="hello" aria-labelledby="helloTitle">
+              <img class="hello__crest" src="crest.png" alt="" />
+              <h1 class="hello__title" id="helloTitle">Hi there. What can I help with?</h1>
+              <p class="hello__sub">Ask anything about block order, meals, sign-ins, clubs, support and life at Brentwood.</p>
             </section>
 
-            <section class="starters" aria-labelledby="startersTitle">
-              <p class="label" id="startersTitle">Try asking</p>
-              <ul class="starters__list">
-                <li><button type="button" class="starter" data-send="What's the block order today?">
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-                  <span>What’s the block order today?<small>Class times, breaks and events</small></span>
-                </button></li>
-                <li><button type="button" class="starter" data-send="What's for lunch today?">
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3"/><path d="M9 10v11"/><path d="M17 3c-1.7 0-3 2.5-3 5.5 0 2 .8 3.5 2 4V21"/></svg>
-                  <span>What’s for lunch today?<small>Today’s lunch menu</small></span>
-                </button></li>
-                <!-- The campus map already exists as a view, so this opens it directly -->
-                <li><button type="button" class="starter" data-view="map">
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
-                  <span>Find a building on the campus map<small>Houses, Crooks Hall, the Health Centre</small></span>
-                </button></li>
-                <li><button type="button" class="starter" data-send="Tell me about clubs.">
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg>
-                  <span>Tell me about clubs<small>Student life and activities</small></span>
-                </button></li>
-                <li><button type="button" class="starter" data-send="How do I book the Health Centre?">
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
-                  <span>How do I book the Health Centre?<small>Policies and support</small></span>
-                </button></li>
-                <li><button type="button" class="starter" data-send="What time is sign-in tonight?">
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-                  <span>What time is sign-in tonight?<small>House sign-ins and bedtimes</small></span>
-                </button></li>
+            <ul class="chips" aria-label="Try asking">
+              <li><button type="button" class="chip" data-send="What's the block order today?">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                <span>What’s the block order today?</span>
+              </button></li>
+              <li><button type="button" class="chip" data-send="What's for lunch today?">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3"/><path d="M9 10v11"/><path d="M17 3c-1.7 0-3 2.5-3 5.5 0 2 .8 3.5 2 4V21"/></svg>
+                <span>What’s for lunch today?</span>
+              </button></li>
+              <li><button type="button" class="chip" data-send="What time is sign-in tonight?">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <span>What time is sign-in tonight?</span>
+              </button></li>
+              <li><button type="button" class="chip" data-send="Tell me about clubs.">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5.2 5.2 0 0 1 22 19.5"/></svg>
+                <span>Tell me about clubs</span>
+              </button></li>
+              <li><button type="button" class="chip" data-send="How do I book the Health Centre?">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6z"/><path d="M12 9v6M9 12h6"/></svg>
+                <span>How do I book the Health Centre?</span>
+              </button></li>
+              <!-- The campus map is a real view, so this chip opens it directly -->
+              <li><button type="button" class="chip" data-view="map">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21l-6-3V3l6 3 6-3 6 3v15l-6-3-6 3z"/><path d="M9 6v15"/><path d="M15 3v15"/></svg>
+                <span>Find a building on the map</span>
+              </button></li>
+            </ul>
+
+            <!-- Compact calendar: next few public events; "All events" opens the panel -->
+            <section class="upcoming" aria-labelledby="upTitle">
+              <div class="upcoming__head">
+                <h2 class="upcoming__title" id="upTitle">Upcoming at Brentwood</h2>
+                <button type="button" class="link-btn" data-panel="open">All events</button>
+              </div>
+              <ul class="upcoming__list" id="upcomingMini" aria-busy="true">
+                <li class="skeleton" aria-hidden="true"></li>
               </ul>
             </section>
-
-            <!-- Below 1100px the Upcoming aside is moved here by JS -->
-            <div class="aside-slot" id="asideSlot"></div>
           </div>
 
           <div class="thread">
@@ -490,26 +427,30 @@
         <form class="composer" id="form">
           <div class="composer__field">
             <label for="input" class="sr-only">Ask Brentwood Assistant</label>
-            <textarea id="input" rows="1" maxlength="500" placeholder="Ask about Brentwood…" aria-describedby="counter"></textarea>
+            <textarea id="input" rows="1" maxlength="500" placeholder="Ask Brentwood Assistant" aria-describedby="counter"></textarea>
             <button class="send" id="send" type="submit" aria-label="Send" disabled>
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
             </button>
           </div>
           <div class="composer__meta">
-            <span class="composer__hint">Enter to send · Shift+Enter for a new line</span>
+            <span class="composer__hint">Brentwood Assistant can make mistakes. Check official pages for anything time-sensitive.</span>
             <span class="counter" id="counter" aria-live="off" hidden>0/500</span>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Campus map view (shares the main column with the chat) -->
+    <!-- Campus map view (replaces the conversation column while open) -->
     <section class="map-view" id="mapView" hidden aria-label="Campus map">
       <div class="map-head">
         <h2>Campus map</h2>
         <label for="mapSearch" class="sr-only">Search a building</label>
         <input id="mapSearch" type="search" placeholder="Search a building…" autocomplete="off" spellcheck="false" />
         <span class="map-status" id="mapStatus" aria-live="polite"></span>
+        <button type="button" class="tb-btn" data-view="chat">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Back to chat</span>
+        </button>
       </div>
       <div class="map-stage">
         <div class="map-canvas">
@@ -521,22 +462,24 @@
         </div>
       </div>
     </section>
-
-    <!-- Upcoming events: secondary, desktop right column / stacked below on smaller screens -->
-    <aside class="aside" id="aside" aria-label="Upcoming events">
-      <section id="asideEvents" aria-labelledby="evTitle">
-        <div class="aside__head">
-          <h2 class="aside__title" id="evTitle">Upcoming</h2>
-          <a class="aside__link" id="calendarLink" href="https://www.brentwood.ca/calendar/" target="_blank" rel="noopener noreferrer">Full calendar</a>
-        </div>
-        <ul class="events" id="events" aria-busy="true">
-          <li class="skeleton" aria-hidden="true"></li>
-          <li class="skeleton" aria-hidden="true"></li>
-        </ul>
-      </section>
-      <p class="aside__note">From the public school calendar and <a href="https://www.brentwood.ca/" target="_blank" rel="noopener noreferrer">brentwood.ca</a>. Check official pages for anything time-sensitive.</p>
-    </aside>
   </div>
+
+  <!-- Upcoming events panel: the school calendar, one tap away from any screen -->
+  <div class="scrim" id="scrim"></div>
+  <aside class="panel" id="panel" aria-label="Upcoming events" aria-hidden="true">
+    <div class="panel__head">
+      <h2 class="panel__title">Upcoming</h2>
+      <button type="button" class="close-btn" id="panelClose" data-panel="close" aria-label="Close">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <ul class="events" id="events" aria-busy="true">
+      <li class="skeleton" aria-hidden="true"></li>
+      <li class="skeleton" aria-hidden="true"></li>
+    </ul>
+    <a class="panel__link" id="calendarLink" href="https://www.brentwood.ca/calendar/" target="_blank" rel="noopener noreferrer">Open the full school calendar ↗</a>
+    <p class="panel__note">From the public school calendar and <a href="https://www.brentwood.ca/" target="_blank" rel="noopener noreferrer">brentwood.ca</a>. Check official pages for anything time-sensitive.</p>
+  </aside>
 
 <script src="/chat-progress.js"></script>
 <script>
@@ -554,11 +497,11 @@
   const WARN_AT = 450;
   const REQUEST_TIMEOUT_MS = 18000;
   const OFFICIAL_SITE = "https://www.brentwood.ca/";
+  const MINI_EVENTS = 3; // rows in the empty-state calendar card
 
   const conversation = []; // { role:"user"|"bot", text } — memory only, no localStorage
 
   const $ = (id) => document.getElementById(id);
-  const shellEl   = $("shell");
   const appEl     = $("app");
   const scrollEl  = $("scroll");
   const welcomeEl = $("welcome");
@@ -567,12 +510,11 @@
   const inputEl   = $("input");
   const sendEl    = $("send");
   const counterEl = $("counter");
-  const sidebarEl = $("sidebar");
-  const menuBtn   = $("menuBtn");
-  const scrimEl   = $("scrim");
   const mapViewEl = $("mapView");
-  const asideEl   = $("aside");
-  const asideSlot = $("asideSlot");
+  const panelEl   = $("panel");
+  const panelBtn  = $("panelBtn");
+  const panelClose = $("panelClose");
+  const scrimEl   = $("scrim");
 
   let inFlight = false;
 
@@ -580,7 +522,7 @@
   const ICON_RETRY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
   // ---------------- Composer behavior ----------------
-  function autoGrow() { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px"; }
+  function autoGrow() { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + "px"; }
   function updateCounter() {
     const n = inputEl.value.length;
     counterEl.textContent = n + "/" + MAX_CHARS;
@@ -802,91 +744,69 @@
     vv.addEventListener("scroll", fitToViewport);
   }
 
-  // ---------------- Views: home / ask / chat / map ----------------
-  const navButtons = Array.from(sidebarEl.querySelectorAll(".nav-item[data-view]"));
-  function setActiveNav(view) {
-    navButtons.forEach(b => {
-      const on = b.dataset.view === view;
-      b.classList.toggle("is-active", on);
-      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
-    });
-  }
-  function setWelcome(show) {
-    welcomeEl.classList.toggle("is-hidden", !show);
-    if (!show && !mapViewEl.hidden) return;
-    setActiveNav(show ? "home" : "ask");
-  }
+  // ---------------- Views: chat / map, plus "new chat" ----------------
+  function setWelcome(show) { welcomeEl.classList.toggle("is-hidden", !show); }
   function showView(view) {
     const isMap = view === "map";
     appEl.style.display = isMap ? "none" : "";
     mapViewEl.hidden = !isMap;
-    if (isMap) setActiveNav("map");
-    else setActiveNav(welcomeEl.classList.contains("is-hidden") ? "ask" : "home");
   }
-  function goHome() {
+  // New chat: clear the thread and go back to the greeting (like the "+" in
+  // Gemini / ChatGPT). Refused while a reply is still in flight.
+  function newChat() {
+    if (inFlight) { showView("chat"); return; }
+    logEl.innerHTML = "";
+    conversation.length = 0;
     showView("chat");
     setWelcome(true);
-    scrollEl.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
-  }
-  function goAsk() {
-    showView("chat");
+    scrollEl.scrollTo({ top: 0, behavior: "auto" });
     inputEl.focus({ preventScroll: true });
-    scrollToBottom();
   }
-  function fillPrompt(text, scrollTarget) {
+  function fillPrompt(text) {
     showView("chat");
     inputEl.value = text; autoGrow(); updateCounter(); refreshSendState();
-    if (scrollTarget) {
-      const t = $(scrollTarget);
-      if (t && asideSlot.contains(t)) t.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
-    }
-    inputEl.focus({ preventScroll: !!scrollTarget });
+    inputEl.focus({ preventScroll: true });
     inputEl.setSelectionRange(text.length, text.length);
   }
 
-  // One delegated handler: data-send sends now, data-fill drafts, data-view switches view.
+  // ---------------- Upcoming panel ----------------
+  function setPanel(open, refocus = true) {
+    panelEl.classList.toggle("is-open", open);
+    scrimEl.classList.toggle("is-open", open);
+    panelEl.setAttribute("aria-hidden", String(!open));
+    panelBtn.setAttribute("aria-expanded", String(open));
+    panelBtn.classList.toggle("is-active", open);
+    if (open) panelClose.focus();
+    else if (refocus) panelBtn.focus();
+  }
+  scrimEl.addEventListener("click", () => setPanel(false));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && panelEl.classList.contains("is-open")) setPanel(false);
+  });
+
+  // One delegated handler: data-send sends now, data-fill drafts,
+  // data-view switches view, data-panel opens/closes the calendar.
   document.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-send], [data-fill], [data-view]");
+    const el = e.target.closest("[data-send], [data-fill], [data-view], [data-panel]");
     if (!el) return;
     if (el.dataset.send !== undefined) { if (!inFlight) sendMessage(el.dataset.send); }
-    else if (el.dataset.fill !== undefined) fillPrompt(el.dataset.fill, el.dataset.scroll);
-    else if (el.dataset.view === "home") goHome();
-    else if (el.dataset.view === "ask") goAsk();
-    else if (el.dataset.view === "map") { showView("map"); if (el.classList.contains("starter")) mapSearchEl.focus({ preventScroll: true }); }
-    if (sidebarEl.classList.contains("is-open")) setDrawer(false, /*refocusMenu*/ false);
+    else if (el.dataset.fill !== undefined) fillPrompt(el.dataset.fill);
+    else if (el.dataset.view === "new") newChat();
+    else if (el.dataset.view === "chat") { showView("chat"); inputEl.focus({ preventScroll: true }); }
+    else if (el.dataset.view === "map") { showView("map"); mapSearchEl.focus({ preventScroll: true }); }
+    else if (el.dataset.panel === "open") setPanel(true);
+    else if (el.dataset.panel === "close") setPanel(false);
+    else if (el.dataset.panel === "toggle") setPanel(!panelEl.classList.contains("is-open"));
+    if (el.dataset.panel === undefined && panelEl.classList.contains("is-open")) setPanel(false, /*refocus*/ false);
   });
-
-  // ---------------- Drawer (sidebar below 1100px) ----------------
-  function setDrawer(open, refocusMenu = true) {
-    sidebarEl.classList.toggle("is-open", open);
-    scrimEl.classList.toggle("is-open", open);
-    menuBtn.setAttribute("aria-expanded", String(open));
-    menuBtn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
-    if (open) (sidebarEl.querySelector(".nav-item.is-active") || navButtons[0]).focus();
-    else if (refocusMenu) menuBtn.focus();
-  }
-  menuBtn.addEventListener("click", () => setDrawer(!sidebarEl.classList.contains("is-open")));
-  scrimEl.addEventListener("click", () => setDrawer(false));
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && sidebarEl.classList.contains("is-open")) setDrawer(false);
-  });
-
-  // Desktop: the Upcoming aside is the grid's right column. Below 1100px it
-  // moves under the starters so the main column is the single scroller.
-  const desktopMQ = window.matchMedia("(min-width: 1100px)");
-  function placeAside() {
-    if (desktopMQ.matches) { if (asideEl.parentElement !== shellEl) shellEl.appendChild(asideEl); }
-    else if (asideEl.parentElement !== asideSlot) asideSlot.appendChild(asideEl);
-    if (desktopMQ.matches && sidebarEl.classList.contains("is-open")) setDrawer(false, false);
-  }
-  desktopMQ.addEventListener ? desktopMQ.addEventListener("change", placeAside) : desktopMQ.addListener(placeAside);
-  placeAside();
 
   // ---------------- Upcoming events (GET /api/upcoming-events) ----------------
   // Public school-calendar highlights + featured events + assembly/tutorial/
   // advisory. Never personal MySchool events. Shape per item:
   // { date, end_date, title, start_time, end_time, all_day, is_special }
+  // Rendered twice: the full list in the panel, the first few on the greeting.
   const eventsEl = $("events");
+  const miniEl   = $("upcomingMini");
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   function fmtTime(hhmm) {
     if (!hhmm) return "";
@@ -910,15 +830,19 @@
     if (when) { const t = document.createElement("div"); t.className = "event__time"; t.textContent = when; li.appendChild(t); }
     return li;
   }
-  function renderEvents(list) {
-    eventsEl.innerHTML = "";
-    eventsEl.setAttribute("aria-busy", "false");
+  function fillList(el, list, emptyText) {
+    el.innerHTML = "";
+    el.setAttribute("aria-busy", "false");
     if (!list.length) {
       const p = document.createElement("li"); p.className = "events-empty";
-      p.textContent = "Nothing scheduled in the next two weeks.";
-      eventsEl.appendChild(p); return;
+      p.textContent = emptyText;
+      el.appendChild(p); return;
     }
-    list.forEach(ev => eventsEl.appendChild(eventItem(ev)));
+    list.forEach(ev => el.appendChild(eventItem(ev)));
+  }
+  function renderEvents(list) {
+    fillList(eventsEl, list, "Nothing scheduled in the next two weeks.");
+    fillList(miniEl, list.slice(0, MINI_EVENTS), "Nothing scheduled in the next two weeks.");
   }
   async function loadEvents() {
     try {
@@ -927,11 +851,8 @@
       const data = await res.json();
       renderEvents(Array.isArray(data.events) ? data.events : []);
     } catch (err) {
-      eventsEl.innerHTML = "";
-      eventsEl.setAttribute("aria-busy", "false");
-      const p = document.createElement("li"); p.className = "events-empty";
-      p.textContent = "Couldn’t load events right now.";
-      eventsEl.appendChild(p);
+      fillList(eventsEl, [], "Couldn’t load events right now.");
+      fillList(miniEl, [], "Couldn’t load events right now.");
     }
   }
   $("calendarLink").href = CALENDAR_URL;
