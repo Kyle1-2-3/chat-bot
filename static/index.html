@@ -565,6 +565,7 @@
   const asideSlot = $("asideSlot");
 
   let inFlight = false;
+  let activeRequest = null;
 
   const ICON_COPY  = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
   const ICON_RETRY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
@@ -699,15 +700,19 @@
     scrollToBottom();
   }
 
-  function renderError(bubble, col, lastUserText) {
+  function renderError(bubble, col, lastUserText, serverMessage) {
     bubble.innerHTML = "";
     const note = document.createElement("p");
     note.className = "error-note";
-    note.append("I couldn’t find that information. Try rephrasing your question or check the ");
-    const a = document.createElement("a");
-    a.href = OFFICIAL_SITE; a.target = "_blank"; a.rel = "noopener noreferrer";
-    a.textContent = "official school site";
-    note.append(a, ".");
+    if (serverMessage) {
+      note.textContent = serverMessage;
+    } else {
+      note.append("I couldn’t complete that reply. Please try again or check the ");
+      const a = document.createElement("a");
+      a.href = OFFICIAL_SITE; a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.textContent = "official school site";
+      note.append(a, ".");
+    }
     bubble.appendChild(note);
     const retry = document.createElement("button");
     retry.type = "button"; retry.className = "retry";
@@ -731,7 +736,7 @@
     const prior = conversation.slice(0, -1);
     return prior.slice(-MEMORY_TURNS)
       .map(t => (t.role === "user" ? "Student" : "Assistant") + ": " + t.text)
-      .join("\n");
+      .join("\n").slice(-8000);
   }
 
   // ---------------- Send flow ----------------
@@ -753,11 +758,8 @@
     // Idle deadline: every progress event from the server restarts it, so a
     // slow-but-alive reply (two Gemini calls) isn't cut off and retried.
     const controller = new AbortController();
-    let timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    const extendDeadline = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    };
+    activeRequest = controller;
+    const deadline = ChatProgress.createIdleDeadline(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const res = await fetch(API_ENDPOINT, {
@@ -766,20 +768,25 @@
         body: JSON.stringify({ message: userText, memory }),
         signal: controller.signal,
       });
-      const data = await ChatProgress.readReply(res, stage => { extendDeadline(); waiting.update(stage); });
-      clearTimeout(timer);
+      const data = await ChatProgress.readReply(res, stage => { deadline.touch(); waiting.update(stage); });
+      deadline.stop();
       await waiting.finish();
+      if (activeRequest !== controller) return;
       const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());
       const reply = hasReply ? data.reply : "I’m sorry — I didn’t catch that. Could you try rephrasing?";
       renderReply(bubble, col, reply);
       if (hasReply) conversation.push({ role: "bot", text: reply });
     } catch (err) {
-      clearTimeout(timer);
+      deadline.stop();
       await waiting.finish();
-      renderError(bubble, col, userText);
+      if (activeRequest !== controller) return;
+      renderError(bubble, col, userText, err.userMessage);
     } finally {
-      clearTimeout(timer);
-      inFlight = false; refreshSendState();
+      deadline.stop();
+      if (activeRequest === controller) {
+        activeRequest = null;
+        inFlight = false; refreshSendState();
+      }
     }
   }
 
@@ -821,9 +828,13 @@
     else setActiveNav(welcomeEl.classList.contains("is-hidden") ? "ask" : "home");
   }
   function newChat() {
-    if (inFlight) return;
+    activeRequest?.abort();
+    activeRequest = null;
+    inFlight = false;
     logEl.innerHTML = "";
     conversation.length = 0;
+    inputEl.value = "";
+    autoGrow(); updateCounter(); refreshSendState();
     goHome();
     inputEl.focus({ preventScroll: true });
   }

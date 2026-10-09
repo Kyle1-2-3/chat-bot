@@ -4,8 +4,9 @@ import app as appmod
 
 
 @pytest.fixture(autouse=True)
-def _no_rate_limit():
+def _no_rate_limit(monkeypatch):
     """Keep the limiter out of unrelated tests — /chat calls accumulate across
     the suite and would trip the per-minute cap. test_rate_limit re-enables it."""
     appmod.limiter.enabled = False
+    monkeypatch.setitem(appmod.app.config, "USAGE_LIMITS_ENABLED", False)
     yield
