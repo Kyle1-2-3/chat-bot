@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="dark">
+<title>Improvement Queue — Brentwood Assistant</title>
+<link rel="icon" href="crest.png" type="image/png">
+<style>
+  :root {
+    --bg: #0f0f11; --bg-2: #151517; --bg-3: #1c1c1f;
+    --red: #c8102e; --red-hover: #d9203d; --red-soft: rgba(200, 16, 46, 0.12);
+    --text: #ececee; --muted: #9b9ea6; --dim: #6b6e75;
+    --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.16);
+    --amber: #f2b45a; --green: #6fd09a; --warn: #ff7a6e;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+  main { width: min(980px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 72px; }
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 22px; flex-wrap: wrap; }
+  .eyebrow { margin: 0 0 4px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  h1 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+  input, select, textarea, button { font: inherit; }
+  input, select, textarea { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-2); color: var(--text); padding: 9px 12px; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--red); }
+  button { border: 0; border-radius: 999px; background: var(--red); color: #fff; padding: 9px 16px; font-weight: 500; cursor: pointer; }
+  button:hover { background: var(--red-hover); }
+  button:disabled { opacity: 0.55; cursor: default; }
+  .auth { display: flex; gap: 8px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); margin-bottom: 14px; }
+  #summary { color: var(--muted); }
+  .queue { display: grid; gap: 10px; }
+  .card { border: 1px solid var(--line); border-radius: 14px; background: var(--bg-2); padding: 18px; }
+  .card-head { display: flex; justify-content: space-between; gap: 12px; color: var(--dim); font-size: 12px; }
+  .tag { color: var(--amber); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .tag.student { color: #f08a99; }
+  .question { margin: 10px 0 6px; font-size: 17px; font-weight: 600; }
+  .answer { margin: 0 0 10px; color: #c9ccd2; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  .details { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--red); background: var(--bg-3); white-space: pre-wrap; }
+  .card-actions { display: grid; grid-template-columns: 150px 1fr auto; gap: 8px; align-items: start; }
+  textarea { min-height: 42px; resize: vertical; }
+  .empty { padding: 60px 20px; border: 1px dashed var(--line-strong); border-radius: 14px; text-align: center; color: var(--muted); }
+  .error { color: var(--warn); }
+  @media (max-width: 680px) {
+    .auth { width: 100%; } .auth input { flex: 1; min-width: 0; }
+    .toolbar { flex-direction: column; align-items: flex-start; }
+    .card-actions { grid-template-columns: 1fr; } .card-actions button { justify-self: start; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="eyebrow">Brentwood Assistant</p><h1>Improvement queue</h1></div>
+    <form class="auth" id="auth">
+      <input id="token" type="password" placeholder="Admin token" autocomplete="current-password" aria-label="Admin token">
+      <button>Open queue</button>
+    </form>
+  </header>
+  <div class="toolbar">
+    <span id="summary">Enter the admin token to see reported answers and unanswered questions.</span>
+    <select id="filter" aria-label="Filter by status">
+      <option value="open">Open</option><option value="in_progress">In progress</option>
+      <option value="resolved">Resolved</option><option value="all">All</option>
+    </select>
+  </div>
+  <section class="queue" id="queue"></section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const queue = $("queue"), summary = $("summary"), tokenEl = $("token"), filter = $("filter");
+  const store = { get() { try { return sessionStorage.getItem("feedbackAdminToken") || ""; } catch { return ""; } },
+                  set(v) { try { sessionStorage.setItem("feedbackAdminToken", v); } catch {} } };
+  let adminToken = store.get();
+  tokenEl.value = adminToken;
+
+  const escapeHtml = (s) => String(s ?? "").replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c]));
+  const LABELS = { unanswered: "Didn't understand", incorrect: "Wrong answer", outdated: "Outdated", unclear: "Confusing", other: "Other" };
+
+  async function load() {
+    if (!adminToken) return;
+    summary.textContent = "Loading…";
+    queue.innerHTML = "";
+    let res;
+    try {
+      res = await fetch("/api/feedback?status=" + encodeURIComponent(filter.value), { headers: { "X-Admin-Token": adminToken } });
+    } catch {
+      summary.innerHTML = '<span class="error">Could not reach the server.</span>'; return;
+    }
+    if (!res.ok) { summary.innerHTML = '<span class="error">Access denied. Check the token.</span>'; return; }
+    const { feedback = [] } = await res.json();
+    summary.textContent = `${feedback.length} item${feedback.length === 1 ? "" : "s"} · ${filter.options[filter.selectedIndex].text}`;
+    queue.innerHTML = feedback.length ? feedback.map(card).join("") : '<div class="empty">Nothing here.</div>';
+  }
+
+  function option(value, label, current) {
+    return `<option value="${value}" ${current === value ? "selected" : ""}>${label}</option>`;
+  }
+
+  function card(item) {
+    return `<article class="card" data-id="${Number(item.feedback_id)}">
+      <div class="card-head">
+        <span class="tag ${item.source === "student" ? "student" : ""}">${escapeHtml(LABELS[item.issue_type] || item.issue_type)} · ${item.source === "student" ? "Student report" : "Auto-captured"}</span>
+        <time>${escapeHtml(item.created_at)} UTC</time>
+      </div>
+      <div class="question">${escapeHtml(item.question)}</div>
+      <p class="answer">${item.answer ? escapeHtml(item.answer) : "<em>No answer recorded</em>"}</p>
+      ${item.details ? `<p class="details">Expected: ${escapeHtml(item.details)}</p>` : ""}
+      <div class="card-actions">
+        <select class="status" aria-label="Status">${option("open", "Open", item.status)}${option("in_progress", "In progress", item.status)}${option("resolved", "Resolved", item.status)}</select>
+        <textarea class="notes" placeholder="Fix or verification notes…" aria-label="Notes">${escapeHtml(item.resolution_notes)}</textarea>
+        <button class="save">Save</button>
+      </div>
+    </article>`;
+  }
+
+  $("auth").addEventListener("submit", (e) => { e.preventDefault(); adminToken = tokenEl.value.trim(); store.set(adminToken); load(); });
+  filter.addEventListener("change", load);
+  queue.addEventListener("click", async (e) => {
+    if (!e.target.classList.contains("save")) return;
+    const el = e.target.closest(".card");
+    e.target.disabled = true; e.target.textContent = "Saving…";
+    const res = await fetch("/api/feedback/" + el.dataset.id, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "X-Admin-Token": adminToken },
+      body: JSON.stringify({ status: el.querySelector(".status").value, resolution_notes: el.querySelector(".notes").value }),
+    }).catch(() => null);
+    if (res && res.ok) load();
+    else { e.target.disabled = false; e.target.textContent = "Try again"; }
+  });
+  if (adminToken) load();
+</script>
+</body>
+</html>

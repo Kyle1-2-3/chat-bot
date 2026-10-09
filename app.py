@@ -20,6 +20,7 @@ import hmac
 from contextlib import closing
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from usage_limits import UsageStore, UsageUnavailable, DailyBudgetReached
+import feedback
 from school_knowledge import search_school_knowledge
 from school_calendar import calendar_result, leave_on
 from school_events import upcoming_events as prioritize_upcoming_events
@@ -53,6 +54,7 @@ app.config.update(
     GEMINI_DAILY_CALL_LIMIT=int(os.getenv("GEMINI_DAILY_CALL_LIMIT", "10000")),
 )
 usage_store = UsageStore(os.getenv("USAGE_DB_PATH", "var/usage.sqlite3"))
+feedback_store = feedback.FeedbackStore(os.getenv("FEEDBACK_DB_PATH", "var/feedback.sqlite3"))
 USAGE_COOKIE = "brentwood_visitor"
 BUDGET_REPLY = "We've reached today's AI usage limit. Please try again tomorrow. Simple menu and block-order questions still work 🙂"
 USAGE_UNAVAILABLE_REPLY = "The assistant is temporarily unavailable. Please try again in a moment 🙂"
@@ -1098,6 +1100,15 @@ STATIC_REPLIES = {
 }
 
 
+def capture_unanswered(req_id: str, question: str, answer: str, details: str = "") -> None:
+    """Queue a question the bot could not answer; never let this break the reply."""
+    try:
+        feedback_store.add(question=question, answer=answer, issue_type="unanswered",
+                           details=details, source="automatic", request_id=req_id)
+    except Exception:
+        logger.exception("[%s] automatic feedback capture failed", req_id)
+
+
 def chat_events(user_msg: str, memory: str, req_id: str):
     """The same answer pipeline for JSON and progress-stream clients.
 
@@ -1106,11 +1117,14 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     """
     logger.debug("[%s] USER: %s", req_id, user_msg)
 
+    def reply(text):
+        return "reply", {"reply": text, "request_id": req_id}
+
     if DEV_TRIGGER and DEV_TRIGGER in user_msg:
         logger.info("[%s] dev trigger: raw Gemini chat", req_id)
         raw_msg = user_msg.replace(DEV_TRIGGER, " ").strip() or "Hi!"
         yield "status", {"stage": "writing"}
-        yield "reply", {"reply": generate_raw_answer(raw_msg, memory)}
+        yield reply(generate_raw_answer(raw_msg, memory))
         return
 
     yield "status", {"stage": "understanding"}
@@ -1129,10 +1143,12 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     if not actionable:
         if any(c.get("intent") == "GREETING" for c in classifications):
             yield "status", {"stage": "writing"}
-            yield "reply", {"reply": generate_answer(user_msg, classifications, [{"type": "GREETING"}])}
+            yield reply(generate_answer(user_msg, classifications, [{"type": "GREETING"}]))
             return
 
-        yield "reply", {"reply": "Hey 🙂 I’m not fully sure what you want. You can ask about meals, schedules, sign-in times, school staff, facilities, or student services."}
+        not_sure = "Hey 🙂 I’m not fully sure what you want. You can ask about meals, schedules, sign-in times, school staff, facilities, or student services."
+        capture_unanswered(req_id, user_msg, not_sure)
+        yield reply(not_sure)
         return
 
     yield "status", {"stage": "checking"}
@@ -1140,7 +1156,9 @@ def chat_events(user_msg: str, memory: str, req_id: str):
         results = [build_result_from_classification(c, user_msg) for c in actionable]
     except Exception:
         logger.exception("[%s] build_result failed", req_id)
-        yield "error", {"reply": "Sorry — I had trouble reading the school data."}
+        data_error = "Sorry — I had trouble reading the school data."
+        capture_unanswered(req_id, user_msg, data_error, details="School data lookup failed")
+        yield "error", {"reply": data_error, "request_id": req_id}
         return
 
     logger.debug("[%s] RESULTS: %s", req_id, results)
@@ -1148,10 +1166,10 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     yield "status", {"stage": "writing"}
     types_seen = {r["type"] for r in results}
     if len(types_seen) == 1 and next(iter(types_seen)) in STATIC_REPLIES:
-        reply = STATIC_REPLIES[next(iter(types_seen))]
+        text = STATIC_REPLIES[next(iter(types_seen))]
     else:
-        reply = generate_answer(user_msg, actionable, results)
-    yield "reply", {"reply": reply}
+        text = generate_answer(user_msg, actionable, results)
+    yield reply(text)
 
 
 @app.route("/chat", methods=["POST"])
@@ -1208,6 +1226,64 @@ def chat():
         return jsonify(reply=USAGE_UNAVAILABLE_REPLY), 503
     finally:
         events.close()
+
+@app.route("/api/feedback", methods=["POST"])
+@limiter.limit("20 per day")
+def submit_feedback():
+    """A student reports an answer; it lands in the private improvement queue."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error="Invalid feedback."), 400
+    fields = {k: data.get(k) or "" for k in ("question", "answer", "issue_type", "details", "request_id")}
+    if not all(isinstance(v, str) for v in fields.values()):
+        return jsonify(error="Invalid feedback."), 400
+    fields = {k: v.strip() for k, v in fields.items()}
+    if not fields["question"] or len(fields["question"]) > 500:
+        return jsonify(error="A question between 1 and 500 characters is required."), 400
+    if fields["issue_type"] not in feedback.ISSUE_TYPES:
+        return jsonify(error="Invalid issue type."), 400
+    if len(fields["answer"]) > 4000 or len(fields["details"]) > 1500 or len(fields["request_id"]) > 40:
+        return jsonify(error="Feedback is too long."), 400
+    try:
+        feedback_id = feedback_store.add(source="student", **fields)
+    except Exception:
+        logger.exception("feedback submission failed")
+        return jsonify(error="Could not save feedback."), 500
+    return jsonify(ok=True, feedback_id=feedback_id), 201
+
+
+def feedback_admin_ok() -> bool:
+    expected = os.getenv("FEEDBACK_ADMIN_TOKEN", "")
+    auth = request.headers.get("Authorization", "")
+    given = auth[7:].strip() if auth.startswith("Bearer ") else request.headers.get("X-Admin-Token", "").strip()
+    return bool(expected and given and hmac.compare_digest(given, expected))
+
+
+@app.route("/api/feedback", methods=["GET"])
+@limiter.exempt
+def list_feedback():
+    if not feedback_admin_ok():
+        return jsonify(error="Unauthorized"), 401
+    status = request.args.get("status", "open")
+    if status not in feedback.STATUSES and status != "all":
+        return jsonify(error="Invalid status"), 400
+    limit = min(max(request.args.get("limit", 100, type=int), 1), 500)
+    return jsonify(feedback=feedback_store.list(status, limit))
+
+
+@app.route("/api/feedback/<int:feedback_id>", methods=["PATCH"])
+def update_feedback(feedback_id: int):
+    if not feedback_admin_ok():
+        return jsonify(error="Unauthorized"), 401
+    data = request.get_json(silent=True)
+    status = data.get("status") if isinstance(data, dict) else None
+    notes = (data.get("resolution_notes") or "") if isinstance(data, dict) else ""
+    if status not in feedback.STATUSES or not isinstance(notes, str) or len(notes) > 2000:
+        return jsonify(error="Invalid update"), 400
+    if not feedback_store.update(feedback_id, status, notes.strip()):
+        return jsonify(error="Not found"), 404
+    return jsonify(ok=True)
+
 
 @app.route("/")
 def index():
