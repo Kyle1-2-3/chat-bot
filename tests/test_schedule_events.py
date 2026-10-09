@@ -103,7 +103,11 @@ def test_non_calendar_response_preserves_schedule(tmp_path, monkeypatch):
         assert conn.execute("SELECT COUNT(*) FROM ScheduleTimeline").fetchone()[0] == 1
 
 
-@pytest.mark.parametrize("module", [ss, appmod])
+def test_app_and_sync_share_one_school_date():
+    assert appmod.today is ss.today
+
+
+@pytest.mark.parametrize("module", [ss])
 def test_school_date_stays_on_previous_day_before_vancouver_midnight(module, monkeypatch):
     class Clock(datetime):
         @classmethod

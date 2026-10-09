@@ -85,6 +85,7 @@ def apply_menus(conn: sqlite3.Connection, menus: dict[int, dict[str, str]]) -> d
                     cur.execute("""
                         INSERT INTO Menus(schedule_id, menu_content) VALUES (?, ?)
                         ON CONFLICT(schedule_id) DO UPDATE SET menu_content = excluded.menu_content
+                        WHERE menu_content IS NOT excluded.menu_content
                     """, (sid, text))
                     stats["set"] += 1
                 else:

@@ -8,7 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 import time
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup

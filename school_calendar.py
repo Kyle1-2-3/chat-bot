@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from net_retry import with_retry
-from sync_schedule import fetch_ical, _unescape
+from sync_schedule import SCHOOL_TZ, fetch_ical, _unescape
 
 ROOT = Path(__file__).resolve().parent
 SNAPSHOT_PATH = ROOT / "db/school_calendar.json"
@@ -16,7 +16,6 @@ SEED_PATH = ROOT / "data/school_calendar.json"
 SOURCE_URL = "https://www.brentwood.ca/calendar/"
 FEED_URL = ("https://calendar.google.com/calendar/ical/"
             "brentwood.ca_3pgnmrpebak3vo7npopp05gp1c%40group.calendar.google.com/public/basic.ics")
-SCHOOL_TZ = ZoneInfo("America/Vancouver")
 LEAVE_NAMES = {
     "Thanksgiving Leave", "Fall Midterm Break", "Winter Break",
     "Winter Midterm Break", "Spring Break", "Spring Break/Easter Break",

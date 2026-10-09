@@ -1,0 +1,16 @@
+# Mirror of /etc/systemd/system/chatbot.service (live unit; deploy.yml does not install it).
+# gthread: 2 workers x 8 threads = 16 requests in flight, so slow Gemini replies
+# don't queue everyone else. timeout comes from gunicorn.conf.py in the repo.
+[Unit]
+Description=Gunicorn instance to serve chat-bot
+After=network.target
+
+[Service]
+User=ec2-user
+Group=nginx
+WorkingDirectory=/home/ec2-user/chat-bot
+Environment="PATH=/home/ec2-user/chat-bot/venv/bin"
+ExecStart=/home/ec2-user/chat-bot/venv/bin/gunicorn --workers 2 --threads 8 --bind unix:chatbot.sock -m 007 app:app
+
+[Install]
+WantedBy=multi-user.target
