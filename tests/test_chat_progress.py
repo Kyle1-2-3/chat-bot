@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 import app as appmod
 
 STREAM_HEADERS = {"Accept": "text/event-stream"}
@@ -89,6 +91,13 @@ def test_unexpected_stream_failure_is_reported_without_exception_details(monkeyp
     content = response.get_data(as_text=True)
     assert "event: error" in content
     assert "private diagnostic detail" not in content
+
+
+@pytest.mark.parametrize("body", [[1, 2], {"message": 5}, {"message": "hi", "memory": 7}])
+def test_malformed_bodies_get_400_not_500(body):
+    response = appmod.app.test_client().post("/chat", json=body)
+    assert response.status_code == 400
+    assert response.is_json
 
 
 def test_stream_still_enforces_message_limit():

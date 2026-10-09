@@ -41,6 +41,18 @@ def test_classify_query_includes_memory_in_prompt(monkeypatch):
     assert "what about tomorrow" in seen["contents"]
 
 
+def test_classify_query_truncation_keeps_newest_turns(monkeypatch):
+    seen = {}
+    fake_client = pytypes.SimpleNamespace(models=pytypes.SimpleNamespace(
+        generate_content=lambda **kw: seen.update(kw) or pytypes.SimpleNamespace(
+            text='{"requests":[{"intent":"MEAL","day_ref":"TOMORROW","meal_type":"LUNCH"}]}')))
+    monkeypatch.setattr(appmod, "client", fake_client)
+    memory = "Student: old question\nAssistant: " + "x" * 1600 + "\nStudent: when is lunch\nAssistant: 1pm"
+    appmod.classify_query("and tomorrow?", memory=memory)
+    assert "when is lunch" in seen["contents"]  # the newest turn survives the cap
+    assert "old question" not in seen["contents"]
+
+
 def test_classify_query_works_without_memory(monkeypatch):
     fake_client = pytypes.SimpleNamespace(models=pytypes.SimpleNamespace(
         generate_content=lambda **kw: pytypes.SimpleNamespace(

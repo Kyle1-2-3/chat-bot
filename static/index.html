@@ -723,12 +723,13 @@
   }
 
   // ---------------- Memory (turns prior to the in-flight message) ----------------
-  const DEV_TRIGGER = "/천마리의새가우는소리";
-  function buildMemory(userText = "") {
+  // Send the last ~10 Q&A pairs; the server keeps only the newest characters it
+  // needs per path (a short window for the school pipeline, a deeper one for
+  // dev raw-chat), so the client needs no knowledge of the dev trigger.
+  const MEMORY_TURNS = 20;
+  function buildMemory() {
     const prior = conversation.slice(0, -1);
-    // Dev raw-chat gets a deeper window (~10 Q&A pairs) than the normal 4 turns.
-    const turns = userText.includes(DEV_TRIGGER) ? 20 : 4;
-    return prior.slice(-turns)
+    return prior.slice(-MEMORY_TURNS)
       .map(t => (t.role === "user" ? "Student" : "Assistant") + ": " + t.text)
       .join("\n");
   }
@@ -748,9 +749,15 @@
     const { bubble, col } = makeBotTurn();
     const waiting = ChatProgress.createWaitState(showTyping(bubble, userText));
 
-    const memory = buildMemory(userText);
+    const memory = buildMemory();
+    // Idle deadline: every progress event from the server restarts it, so a
+    // slow-but-alive reply (two Gemini calls) isn't cut off and retried.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const extendDeadline = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    };
 
     try {
       const res = await fetch(API_ENDPOINT, {
@@ -759,7 +766,7 @@
         body: JSON.stringify({ message: userText, memory }),
         signal: controller.signal,
       });
-      const data = await ChatProgress.readReply(res, stage => waiting.update(stage));
+      const data = await ChatProgress.readReply(res, stage => { extendDeadline(); waiting.update(stage); });
       clearTimeout(timer);
       await waiting.finish();
       const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());

@@ -179,12 +179,18 @@ _MEAL_ORDER = " ORDER BY mt.meal_type_id, gg.group_id"
 MEAL_SIGNIN_EXEMPT_GRADES = {12}
 
 
+def fetch_grade_rows(boarding_only: bool = False) -> list[dict]:
+    """Each grade with its Junior/Senior group name; boarding_only drops Grade 8 (day students)."""
+    return query("""
+        SELECT g.grade_id, gg.group_name FROM Grades g
+        JOIN GradeGroups gg ON gg.group_id = g.group_id
+        WHERE g.grade_id >= ? ORDER BY g.grade_id
+    """, (9 if boarding_only else 0,))
+
+
 def apply_meal_grade_rules(rows: list[dict], grade: int | None = None) -> list[dict]:
     """Split a shared meal row only where grades have different sign-in rules."""
-    grade_rows = query("""
-        SELECT g.grade_id, gg.group_name FROM Grades g
-        JOIN GradeGroups gg ON gg.group_id = g.group_id ORDER BY g.grade_id
-    """)
+    grade_rows = fetch_grade_rows()
     result = []
     for row in rows:
         group_grades = [g["grade_id"] for g in grade_rows if g["group_name"] == row["group_name"]]
@@ -218,11 +224,7 @@ def fetch_dorm_signins(day_id: int, grade: int | None = None) -> list[dict]:
         WHERE ds.day_id = ? AND rt.type_name = 'SIGN_IN'
         ORDER BY gg.group_id, dsr.rule_order
     """, (day_id,))
-    grade_rows = query("""
-        SELECT g.grade_id, gg.group_name FROM Grades g
-        JOIN GradeGroups gg ON gg.group_id = g.group_id
-        WHERE g.grade_id BETWEEN 9 AND 12 ORDER BY g.grade_id
-    """)
+    grade_rows = fetch_grade_rows(boarding_only=True)
     overrides = {(r["grade_id"], r["rule_order"]): r["start_time"] for r in query(
         "SELECT grade_id, rule_order, start_time FROM DormSigninOverrides WHERE day_id = ?", (day_id,))}
     result = []
@@ -573,7 +575,7 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
         logger.debug("classify_query: fast path -> %s", fast)
         return fast
 
-    memory = (memory or "").strip()[:1500]
+    memory = (memory or "").strip()[-1500:]  # keep the newest turns
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
     prompt = f"Current school date: {today().isoformat()}\n{context}[User Message]\n{user_msg}\n\nReturn JSON only."
     try:
@@ -805,8 +807,9 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
 
 # Dev cheat-code: a message containing this phrase skips the school pipeline
 # entirely and talks to Gemini directly (no classifier, no school system
-# prompt) — like chatting with plain Gemini. Keep the phrase private.
-DEV_TRIGGER = "/천마리의새가우는소리"
+# prompt) — like chatting with plain Gemini. The phrase lives only in the
+# server's private .env (DEV_TRIGGER=...); leave it unset to disable the cheat.
+DEV_TRIGGER = (os.getenv("DEV_TRIGGER") or "").strip()
 
 # Raw chat keeps a larger window than the school pipeline (~10 Q&A pairs) so the
 # dev can hold a real back-and-forth instead of a one-shot question.
@@ -816,7 +819,7 @@ RAW_MEMORY_CHARS = 8000
 RAW_LANG_INSTRUCTION = "[Instruction] Respond in Korean only, regardless of the user's language.\n\n"
 
 def generate_raw_answer(user_msg: str, memory: str = "") -> str:
-    memory = (memory or "").strip()[:RAW_MEMORY_CHARS]
+    memory = (memory or "").strip()[-RAW_MEMORY_CHARS:]  # keep the newest turns
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
     try:
         r = client.models.generate_content(
@@ -923,7 +926,7 @@ def render_academic_timetable(result: dict) -> str:
         return f"- **{label}:** {when or 'Time not listed'}"
 
     labels = {"COOKIE_BREAK": "Cookie Break", "ASSEMBLY": "Assembly",
-              "ADVISORY": "Advisory", "TUTORIAL": "Tutorial"}
+              "ADVISORY": "Advisory", "TUTORIAL": "Tutorial", "INSPECTION": "Inspection"}
     classes, events = [], []
     for row in result.get("rows", []):
         kind = row["item_type"]
@@ -995,7 +998,7 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     """
     logger.debug("[%s] USER: %s", req_id, user_msg)
 
-    if DEV_TRIGGER in user_msg:
+    if DEV_TRIGGER and DEV_TRIGGER in user_msg:
         logger.info("[%s] dev trigger: raw Gemini chat", req_id)
         raw_msg = user_msg.replace(DEV_TRIGGER, " ").strip() or "Hi!"
         yield "status", {"stage": "writing"}
@@ -1061,8 +1064,12 @@ def chat_events(user_msg: str, memory: str, req_id: str):
 def chat():
     req_id = str(uuid.uuid4())[:8]
     data = request.get_json(silent=True) or {}
-    user_msg = (data.get("message", "") or "").strip()
-    memory = (data.get("memory", "") or "")
+    # A non-object body or non-string fields is a client bug: answer 400, not a 500 trace.
+    user_msg = (data.get("message") or "") if isinstance(data, dict) else None
+    memory = (data.get("memory") or "") if isinstance(data, dict) else None
+    if not isinstance(user_msg, str) or not isinstance(memory, str):
+        return jsonify({"reply": "That message didn't come through properly — please try again."}), 400
+    user_msg = user_msg.strip()
 
     if len(user_msg) > 500:
         return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
