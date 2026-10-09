@@ -21,7 +21,7 @@ Set these in the server's private `.env`, then restart `chatbot`:
 | --- | --- | --- |
 | `USER_DAILY_LIMIT` | `300` | Accepted messages per browser per school day |
 | `IP_DAILY_LIMIT` | `300` | Accepted messages per IP per school day, preserving the previous IP policy |
-| `GEMINI_DAILY_CALL_LIMIT` | `1000` | Model calls across this app per school day |
+| `GEMINI_DAILY_CALL_LIMIT` | `10000` | Model calls across this app per school day |
 | `USAGE_DB_PATH` | `var/usage.sqlite3` | Persistent usage database, separate from `db/school.db` |
 
 Use `0` to disable an individual limit. Days reset at midnight in

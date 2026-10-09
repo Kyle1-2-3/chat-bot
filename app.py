@@ -47,7 +47,7 @@ app.config.update(
     USAGE_LIMITS_ENABLED=True,
     USER_DAILY_LIMIT=int(os.getenv("USER_DAILY_LIMIT", "300")),
     IP_DAILY_LIMIT=int(os.getenv("IP_DAILY_LIMIT", "300")),
-    GEMINI_DAILY_CALL_LIMIT=int(os.getenv("GEMINI_DAILY_CALL_LIMIT", "1000")),
+    GEMINI_DAILY_CALL_LIMIT=int(os.getenv("GEMINI_DAILY_CALL_LIMIT", "10000")),
 )
 usage_store = UsageStore(os.getenv("USAGE_DB_PATH", "var/usage.sqlite3"))
 USAGE_COOKIE = "brentwood_visitor"
