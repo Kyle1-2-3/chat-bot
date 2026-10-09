@@ -630,12 +630,8 @@
     return { turn, bubble, col };
   }
 
-  function showTyping(bubble, userText) {
-    const korean = /[가-힣]/.test(userText);
-    const labels = korean ? {
-      preparing: "답변 준비 중…", understanding: "질문 확인 중…",
-      checking: "학교 정보 확인 중…", writing: "답변 작성 중…",
-    } : {
+  function showTyping(bubble) {
+    const labels = {
       preparing: "Preparing a reply…", understanding: "Understanding your question…",
       checking: "Checking school information…", writing: "Writing a reply…",
     };
@@ -752,7 +748,7 @@
   async function runRequest(userText) {
     inFlight = true; refreshSendState();
     const { bubble, col } = makeBotTurn();
-    const waiting = ChatProgress.createWaitState(showTyping(bubble, userText));
+    const waiting = ChatProgress.createWaitState(showTyping(bubble));
 
     const memory = buildMemory();
     // Idle deadline: every progress event from the server restarts it, so a

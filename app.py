@@ -24,7 +24,7 @@ from usage_limits import UsageStore, UsageUnavailable, DailyBudgetReached
 from school_knowledge import search_school_knowledge
 from school_calendar import calendar_result, leave_on
 from school_events import upcoming_events as prioritize_upcoming_events
-from answer_prompts import answer_system_for
+from answer_prompts import answer_system_for, ENGLISH_ONLY_INSTRUCTION
 
 load_dotenv()
 
@@ -902,8 +902,7 @@ DEV_TRIGGER = (os.getenv("DEV_TRIGGER") or "").strip()
 # dev can hold a real back-and-forth instead of a one-shot question.
 RAW_MEMORY_CHARS = 8000
 
-# Raw chat has no school system prompt, but it must still answer in Korean.
-RAW_LANG_INSTRUCTION = "[Instruction] Respond in Korean only, regardless of the user's language.\n\n"
+# Raw chat skips school rules but shares the English-only response policy.
 
 def generate_raw_answer(user_msg: str, memory: str = "") -> str:
     memory = (memory or "").strip()[-RAW_MEMORY_CHARS:]  # keep the newest turns
@@ -911,7 +910,8 @@ def generate_raw_answer(user_msg: str, memory: str = "") -> str:
     try:
         r = call_model(
             model=GEMINI_MODEL,
-            contents=f"{RAW_LANG_INSTRUCTION}{context}{user_msg}",
+            contents=f"{context}{user_msg}",
+            config=types.GenerateContentConfig(system_instruction=ENGLISH_ONLY_INSTRUCTION),
         )
         return (r.text or "").strip()
     except (DailyBudgetReached, UsageUnavailable):
