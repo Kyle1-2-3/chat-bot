@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
@@ -16,7 +16,11 @@ import logging
 import re
 import uuid
 import urllib.parse
+import hashlib
+import hmac
 from contextlib import closing
+from itsdangerous import URLSafeTimedSerializer, BadSignature
+from usage_limits import UsageStore, UsageUnavailable, DailyBudgetReached
 from school_knowledge import search_school_knowledge
 from school_calendar import calendar_result, leave_on
 from school_events import upcoming_events as prioritize_upcoming_events
@@ -38,6 +42,74 @@ logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
 logger = logging.getLogger("chatbot")
 
 app = Flask(__name__, static_url_path="", static_folder="static")
+app.config.update(
+    MAX_CONTENT_LENGTH=64 * 1024,
+    USAGE_LIMITS_ENABLED=True,
+    USER_DAILY_LIMIT=int(os.getenv("USER_DAILY_LIMIT", "300")),
+    IP_DAILY_LIMIT=int(os.getenv("IP_DAILY_LIMIT", "300")),
+    GEMINI_DAILY_CALL_LIMIT=int(os.getenv("GEMINI_DAILY_CALL_LIMIT", "1000")),
+)
+usage_store = UsageStore(os.getenv("USAGE_DB_PATH", "var/usage.sqlite3"))
+USAGE_COOKIE = "brentwood_visitor"
+BUDGET_REPLY = "We've reached today's AI usage limit. Please try again tomorrow. Simple menu and block-order questions still work 🙂"
+USAGE_UNAVAILABLE_REPLY = "The assistant is temporarily unavailable. Please try again in a moment 🙂"
+
+
+def usage_window():
+    # Real school time: demo overrides must never reset the cost counters.
+    now = datetime.now(SCHOOL_TZ)
+    midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time(), SCHOOL_TZ)
+    return int(now.timestamp()), int(midnight.timestamp())
+
+
+def check_daily_usage():
+    if not app.config["USAGE_LIMITS_ENABLED"]:
+        return None
+    try:
+        key = usage_store.signing_key()
+        signer = URLSafeTimedSerializer(key, salt=USAGE_COOKIE)
+        try:
+            visitor = signer.loads(request.cookies.get(USAGE_COOKIE, ""), max_age=30 * 86400)
+            if not isinstance(visitor, str) or not re.fullmatch(r"[a-f0-9]{32}", visitor):
+                raise BadSignature("Invalid visitor")
+        except BadSignature:
+            visitor = uuid.uuid4().hex
+            g.visitor_cookie = signer.dumps(visitor)
+        ip_key = hmac.new(key.encode(), client_ip().encode(), hashlib.sha256).hexdigest()
+        now, resets = usage_window()
+        retry = usage_store.reserve([
+            (f"visitor:{visitor}", app.config["USER_DAILY_LIMIT"], resets),
+            (f"ip:{ip_key}", app.config["IP_DAILY_LIMIT"], resets),
+        ], now)
+    except (OSError, sqlite3.Error):
+        logger.exception("Usage counters unavailable")
+        return jsonify(reply=USAGE_UNAVAILABLE_REPLY), 503
+    if retry:
+        return jsonify(reply="You've reached today's message limit. Come back tomorrow 🙂"), 429, {"Retry-After": str(retry)}
+    return None
+
+
+@app.after_request
+def persist_visitor(response):
+    if getattr(g, "visitor_cookie", None):
+        response.set_cookie(USAGE_COOKIE, g.visitor_cookie, max_age=30 * 86400,
+                            httponly=True, samesite="Lax",
+                            secure=request.is_secure or request.headers.get("X-Forwarded-Proto") == "https")
+    return response
+
+
+def call_model(**kwargs):
+    """Reserve before every model call, including failed attempts and dev chat."""
+    if app.config["USAGE_LIMITS_ENABLED"] and app.config["GEMINI_DAILY_CALL_LIMIT"] > 0:
+        try:
+            now, resets = usage_window()
+            retry = usage_store.reserve([("gemini", app.config["GEMINI_DAILY_CALL_LIMIT"], resets)], now)
+        except (OSError, sqlite3.Error) as exc:
+            logger.exception("Cannot meter Gemini call")
+            raise UsageUnavailable from exc
+        if retry:
+            raise DailyBudgetReached
+    return client.models.generate_content(**kwargs)
 
 def client_ip() -> str:
     """Rate-limit key. Behind nginx the socket peer is always localhost, so use
@@ -54,9 +126,15 @@ limiter = Limiter(client_ip, app=app, storage_uri="memory://")
 def ratelimit_handler(e):
     return jsonify({"reply": "You're sending messages a bit fast — give it a moment and try again 🙂"}), 429
 
+
+@app.errorhandler(413)
+def request_too_large(e):
+    return jsonify(reply="That conversation is too large to send. Start a new chat and try again."), 413
+
 client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY"),
-    http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS),
+    http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS,
+                                  retry_options=types.HttpRetryOptions(attempts=1)),
 )
 
 # ---------------------------
@@ -179,12 +257,18 @@ _MEAL_ORDER = " ORDER BY mt.meal_type_id, gg.group_id"
 MEAL_SIGNIN_EXEMPT_GRADES = {12}
 
 
+def fetch_grade_rows(boarding_only: bool = False) -> list[dict]:
+    """Each grade with its Junior/Senior group name; boarding_only drops Grade 8 (day students)."""
+    return query("""
+        SELECT g.grade_id, gg.group_name FROM Grades g
+        JOIN GradeGroups gg ON gg.group_id = g.group_id
+        WHERE g.grade_id >= ? ORDER BY g.grade_id
+    """, (9 if boarding_only else 0,))
+
+
 def apply_meal_grade_rules(rows: list[dict], grade: int | None = None) -> list[dict]:
     """Split a shared meal row only where grades have different sign-in rules."""
-    grade_rows = query("""
-        SELECT g.grade_id, gg.group_name FROM Grades g
-        JOIN GradeGroups gg ON gg.group_id = g.group_id ORDER BY g.grade_id
-    """)
+    grade_rows = fetch_grade_rows()
     result = []
     for row in rows:
         group_grades = [g["grade_id"] for g in grade_rows if g["group_name"] == row["group_name"]]
@@ -218,11 +302,7 @@ def fetch_dorm_signins(day_id: int, grade: int | None = None) -> list[dict]:
         WHERE ds.day_id = ? AND rt.type_name = 'SIGN_IN'
         ORDER BY gg.group_id, dsr.rule_order
     """, (day_id,))
-    grade_rows = query("""
-        SELECT g.grade_id, gg.group_name FROM Grades g
-        JOIN GradeGroups gg ON gg.group_id = g.group_id
-        WHERE g.grade_id BETWEEN 9 AND 12 ORDER BY g.grade_id
-    """)
+    grade_rows = fetch_grade_rows(boarding_only=True)
     overrides = {(r["grade_id"], r["rule_order"]): r["start_time"] for r in query(
         "SELECT grade_id, rule_order, start_time FROM DormSigninOverrides WHERE day_id = ?", (day_id,))}
     result = []
@@ -279,6 +359,13 @@ def fetch_upcoming_school_events(now: datetime, limit: int = 3) -> list[dict]:
 def current_school_time():
     """Vancouver clock, retaining the existing FAKE_TODAY demo override."""
     return datetime.combine(today(), datetime.now(SCHOOL_TZ).time(), SCHOOL_TZ)
+
+
+def school_clock_instruction():
+    now = current_school_time()
+    return (f"\n\nCurrent school date/time: {now.isoformat(timespec='minutes')} "
+            f"({now:%A}; America/Vancouver). Resolve relative dates from this clock, "
+            "not dates mentioned in conversation history.")
 
 def fetch_grade_group(grade: int) -> str | None:
     rows = query("""
@@ -573,15 +660,15 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
         logger.debug("classify_query: fast path -> %s", fast)
         return fast
 
-    memory = (memory or "").strip()[:1500]
+    memory = (memory or "").strip()[-1500:]  # keep the newest turns
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
     prompt = f"Current school date: {today().isoformat()}\n{context}[User Message]\n{user_msg}\n\nReturn JSON only."
     try:
-        r = client.models.generate_content(
+        r = call_model(
             model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction=CLASSIFIER_SYSTEM,
+                system_instruction=CLASSIFIER_SYSTEM + school_clock_instruction(),
                 temperature=0.0,
             ),
         )
@@ -613,6 +700,8 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
         ]
         return requests_out or [dict(UNKNOWN_REQUEST)]
 
+    except (DailyBudgetReached, UsageUnavailable):
+        raise
     except httpx.TimeoutException:
         logger.error("classify_query: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
         return [dict(UNKNOWN_REQUEST)]
@@ -805,8 +894,9 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
 
 # Dev cheat-code: a message containing this phrase skips the school pipeline
 # entirely and talks to Gemini directly (no classifier, no school system
-# prompt) — like chatting with plain Gemini. Keep the phrase private.
-DEV_TRIGGER = "/천마리의새가우는소리"
+# prompt) — like chatting with plain Gemini. The phrase lives only in the
+# server's private .env (DEV_TRIGGER=...); leave it unset to disable the cheat.
+DEV_TRIGGER = (os.getenv("DEV_TRIGGER") or "").strip()
 
 # Raw chat keeps a larger window than the school pipeline (~10 Q&A pairs) so the
 # dev can hold a real back-and-forth instead of a one-shot question.
@@ -816,14 +906,16 @@ RAW_MEMORY_CHARS = 8000
 RAW_LANG_INSTRUCTION = "[Instruction] Respond in Korean only, regardless of the user's language.\n\n"
 
 def generate_raw_answer(user_msg: str, memory: str = "") -> str:
-    memory = (memory or "").strip()[:RAW_MEMORY_CHARS]
+    memory = (memory or "").strip()[-RAW_MEMORY_CHARS:]  # keep the newest turns
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
     try:
-        r = client.models.generate_content(
+        r = call_model(
             model=GEMINI_MODEL,
             contents=f"{RAW_LANG_INSTRUCTION}{context}{user_msg}",
         )
         return (r.text or "").strip()
+    except (DailyBudgetReached, UsageUnavailable):
+        raise
     except httpx.TimeoutException:
         logger.error("generate_raw_answer: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
     except genai_errors.APIError as e:
@@ -923,7 +1015,7 @@ def render_academic_timetable(result: dict) -> str:
         return f"- **{label}:** {when or 'Time not listed'}"
 
     labels = {"COOKIE_BREAK": "Cookie Break", "ASSEMBLY": "Assembly",
-              "ADVISORY": "Advisory", "TUTORIAL": "Tutorial"}
+              "ADVISORY": "Advisory", "TUTORIAL": "Tutorial", "INSPECTION": "Inspection"}
     classes, events = [], []
     for row in result.get("rows", []):
         kind = row["item_type"]
@@ -967,15 +1059,17 @@ def generate_answer(user_msg: str, classifications: list[dict], results: list[di
     }
 
     try:
-        r = client.models.generate_content(
+        r = call_model(
             model=GEMINI_MODEL,
             contents=json.dumps(payload, ensure_ascii=False),
             config=types.GenerateContentConfig(
-                system_instruction=answer_system_for(results),
+                system_instruction=answer_system_for(results) + school_clock_instruction(),
                 temperature=0.2,
             ),
         )
         return (r.text or "").strip()
+    except (DailyBudgetReached, UsageUnavailable):
+        raise
     except httpx.TimeoutException:
         logger.error("generate_answer: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
     except genai_errors.APIError as e:
@@ -995,7 +1089,7 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     """
     logger.debug("[%s] USER: %s", req_id, user_msg)
 
-    if DEV_TRIGGER in user_msg:
+    if DEV_TRIGGER and DEV_TRIGGER in user_msg:
         logger.info("[%s] dev trigger: raw Gemini chat", req_id)
         raw_msg = user_msg.replace(DEV_TRIGGER, " ").strip() or "Hi!"
         yield "status", {"stage": "writing"}
@@ -1057,15 +1151,25 @@ def chat_events(user_msg: str, memory: str, req_id: str):
 
 
 @app.route("/chat", methods=["POST"])
-@limiter.limit("10 per minute; 300 per day")
+@limiter.limit("10 per minute")
 def chat():
     req_id = str(uuid.uuid4())[:8]
-    data = request.get_json(silent=True) or {}
-    user_msg = (data.get("message", "") or "").strip()
-    memory = (data.get("memory", "") or "")
+    data = request.get_json(silent=True)
+    # A non-object body or non-string fields is a client bug: answer 400, not a 500 trace.
+    user_msg = data.get("message", "") if isinstance(data, dict) else None
+    memory = data.get("memory", "") if isinstance(data, dict) else None
+    if not isinstance(user_msg, str) or not isinstance(memory, str):
+        return jsonify({"reply": "That message didn't come through properly — please try again."}), 400
+    user_msg = user_msg.strip()
 
     if len(user_msg) > 500:
         return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
+
+    if not user_msg:
+        return jsonify({"reply": "Type a question and I'll help 🙂"}), 400
+    limited = check_daily_usage()
+    if limited is not None:
+        return limited
 
     events = chat_events(user_msg, memory, req_id)
     if request.accept_mimetypes.best == "text/event-stream":
@@ -1073,6 +1177,10 @@ def chat():
             try:
                 for event, payload in events:
                     yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            except DailyBudgetReached:
+                yield f'event: error\ndata: {json.dumps({"reply": BUDGET_REPLY})}\n\n'
+            except UsageUnavailable:
+                yield f'event: error\ndata: {json.dumps({"reply": USAGE_UNAVAILABLE_REPLY})}\n\n'
             except Exception:
                 logger.exception("[%s] chat stream failed", req_id)
                 yield 'event: error\ndata: {"reply":"Sorry — something went wrong. Please try again."}\n\n'
@@ -1084,11 +1192,18 @@ def chat():
             "X-Accel-Buffering": "no",
         })
 
-    for event, payload in events:
-        if event == "reply":
-            return jsonify(payload)
-        if event == "error":
-            return jsonify(payload), 500
+    try:
+        for event, payload in events:
+            if event == "reply":
+                return jsonify(payload)
+            if event == "error":
+                return jsonify(payload), 500
+    except DailyBudgetReached:
+        return jsonify(reply=BUDGET_REPLY), 429
+    except UsageUnavailable:
+        return jsonify(reply=USAGE_UNAVAILABLE_REPLY), 503
+    finally:
+        events.close()
 
 @app.route("/")
 def index():

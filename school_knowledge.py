@@ -40,6 +40,25 @@ def load_knowledge():
         return {"checked_on": None, "records": []}
 
 
+_index_cache = (None, None)  # (knowledge dict, index) — rebuilt when the snapshot changes
+
+
+def _index(data):
+    """Tokenised records plus corpus statistics, built once per loaded snapshot."""
+    global _index_cache
+    if _index_cache[0] is not data:
+        records = data["records"]
+        docs = [Counter(tokens(r["title"] + " " + " ".join(r.get("keywords", []))
+                               + " " + " ".join(r["facts"]))) for r in records]
+        titles = [set(tokens(r["title"])) for r in records]
+        named_terms = PLACE_NAMES | {t for r in records if r.get("category") == "staff"
+                                    for t in tokens(r["title"]) if len(t) > 2}
+        frequency = Counter(t for doc in docs for t in doc)
+        average_length = sum(sum(d.values()) for d in docs) / len(docs)
+        _index_cache = (data, (docs, titles, named_terms, frequency, average_length))
+    return _index_cache[1]
+
+
 def search_school_knowledge(search_query, limit=8):
     """Bounded lexical retrieval with title weighting and no unrelated fallback."""
     data = load_knowledge()
@@ -47,19 +66,13 @@ def search_school_knowledge(search_query, limit=8):
     terms = set(tokens(search_query))
     if not terms or not records:
         return []
-    docs = [Counter(tokens(r["title"] + " " + " ".join(r.get("keywords", []))
-                           + " " + " ".join(r["facts"]))) for r in records]
-    named_terms = PLACE_NAMES | {t for r in records if r.get("category") == "staff"
-                                for t in tokens(r["title"]) if len(t) > 2}
+    docs, titles, named_terms, frequency, average_length = _index(data)
     anchors = terms & named_terms
-    frequency = Counter(t for doc in docs for t in doc)
-    average_length = sum(sum(d.values()) for d in docs) / len(docs)
     scored = []
-    for record, doc in zip(records, docs):
+    for record, doc, title in zip(records, docs, titles):
         matches = terms & doc.keys()
         if not matches or (anchors and not anchors.intersection(doc)):
             continue
-        title = set(tokens(record["title"]))
         length = sum(doc.values())
         score = 0
         for term in matches:

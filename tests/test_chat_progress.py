@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 import app as appmod
 
 STREAM_HEADERS = {"Accept": "text/event-stream"}
@@ -91,7 +93,25 @@ def test_unexpected_stream_failure_is_reported_without_exception_details(monkeyp
     assert "private diagnostic detail" not in content
 
 
+@pytest.mark.parametrize("body", [
+    [1, 2], [], 0, False, "", {}, {"message": "   "}, {"message": 5},
+    *({"message": value} for value in [None, False, 0, [], {}]),
+    *({"message": "hi", "memory": value} for value in [None, False, 0, [], {}, 7]),
+])
+def test_malformed_bodies_get_400_not_500(body):
+    response = appmod.app.test_client().post("/chat", json=body)
+    assert response.status_code == 400
+    assert response.is_json
+
+
 def test_stream_still_enforces_message_limit():
     response = appmod.app.test_client().post("/chat", json={"message": "x" * 501}, headers=STREAM_HEADERS)
     assert response.status_code == 400
     assert response.is_json
+
+
+def test_oversized_memory_is_rejected_before_processing():
+    response = appmod.app.test_client().post("/chat", json={
+        "message": "hi", "memory": "x" * (64 * 1024)})
+    assert response.status_code == 413
+    assert "reply" in response.get_json()

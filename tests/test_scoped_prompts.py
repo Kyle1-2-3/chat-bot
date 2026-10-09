@@ -80,7 +80,8 @@ def test_model_receives_only_selected_rules_and_scoped_data(monkeypatch):
     bot.generate_answer("목요일 수업 시간표 알려줘", [{"schedule_focus": "ACADEMIC"}], [data])
     sent = json.loads(captured["contents"])["results"]
     assert "afternoon" not in sent[0]
-    assert captured["config"].system_instruction == answer_system_for(sent)
+    assert captured["config"].system_instruction.startswith(answer_system_for(sent))
+    assert "Current school date/time:" in captured["config"].system_instruction
     assert ANSWER_RULES["SCHOOL_INFO"].strip() not in captured["config"].system_instruction
 
 
@@ -101,6 +102,15 @@ def test_empty_timetable_does_not_invent_free_period_or_afternoon():
     reply = bot.render_academic_timetable({"day_name": "Sunday", "rows": []})
     assert "don't have the class timetable" in reply
     assert "free" not in reply.lower()
+
+
+def test_saturday_inspection_renders_without_model_fallback():
+    reply = bot.render_academic_timetable({"day_name": "Saturday", "rows": [
+        {"item_type": "INSPECTION", "block_code": None, "start_time": "09:30", "end_time": "10:00"},
+        {"item_type": "BLOCK", "block_code": "A", "start_time": "10:15", "end_time": "11:00"},
+    ]})
+    assert "Inspection:** 9:30 AM – 10:00 AM" in reply
+    assert "Block A:** 10:15 AM – 11:00 AM" in reply
 
 
 def test_all_day_and_missing_event_times_are_not_invented():

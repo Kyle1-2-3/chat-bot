@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createWaitState, readReply } = require('../static/chat-progress.js');
+const { createWaitState, createIdleDeadline, readReply } = require('../static/chat-progress.js');
 
 function clock() {
   let ms = 0, id = 0;
@@ -112,4 +112,35 @@ test('a body read failure after headers is not mistaken for a completed answer',
     controller.error(new DOMException('Timed out', 'AbortError'));
   } }), { headers: { 'Content-Type': 'text/event-stream' } });
   await assert.rejects(readReply(response, () => {}), { name: 'AbortError' });
+});
+
+test('two slow model stages can finish after 18 seconds while a stalled stage times out', () => {
+  const time = clock();
+  let aborted = false;
+  const deadline = createIdleDeadline(() => { aborted = true; }, 18000, time);
+  time.advance(14000); deadline.touch();
+  time.advance(14000);
+  assert.equal(aborted, false);
+  time.advance(3999);
+  assert.equal(aborted, false);
+  time.advance(1);
+  assert.equal(aborted, true);
+  assert.equal(time.pending(), 0);
+});
+
+test('a finished request cancels its idle deadline and cannot restart it', () => {
+  const time = clock();
+  let aborted = false;
+  const deadline = createIdleDeadline(() => { aborted = true; }, 18000, time);
+  time.advance(100); deadline.stop(); deadline.touch();
+  time.advance(40000);
+  assert.equal(aborted, false);
+  assert.equal(time.pending(), 0);
+});
+
+test('server usage-limit messages survive both HTTP and streaming error paths', async () => {
+  const message = "We've reached today's AI usage limit.";
+  const matches = err => err.userMessage === message;
+  await assert.rejects(readReply(Response.json({ reply: message }, { status: 429 }), () => {}), matches);
+  await assert.rejects(readReply(stream('event: error\ndata: ' + JSON.stringify({ reply: message }) + '\n\n'), () => {}), matches);
 });

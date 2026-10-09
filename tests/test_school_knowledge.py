@@ -40,6 +40,19 @@ def test_no_unrelated_fallback_and_bounded_results(sample_knowledge):
     assert len(kb.search_school_knowledge("house", limit=1)) == 1
 
 
+def test_cached_search_reloads_when_snapshot_is_replaced(sample_knowledge, monkeypatch):
+    first = kb.search_school_knowledge("Foote facilities")
+    assert kb.search_school_knowledge("Foote facilities") == first
+    replacement = {"checked_on": "2026-10-08", "records": [
+        {**sample_knowledge["records"][2], "facts": ["Foote Centre has updated hours."]}]}
+    monkeypatch.setattr(kb, "load_knowledge", lambda: replacement)
+    result = kb.search_school_knowledge("Foote facilities")
+    assert len(result) == 1
+    assert result[0]["checked_on"] == "2026-10-08"
+    assert result[0]["facts"] == ["Foote Centre has updated hours."]
+    assert kb.search_school_knowledge("Ken Snow") == []
+
+
 def test_missing_snapshot_is_safe(tmp_path, monkeypatch):
     monkeypatch.setattr(kb, "KNOWLEDGE_PATH", tmp_path / "missing.json")
     kb.load_knowledge.cache_clear()
