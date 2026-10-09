@@ -5,6 +5,13 @@ import pytest
 import app as appmod
 
 STREAM_HEADERS = {"Accept": "text/event-stream"}
+RID = "00000000"  # request id with uuid4 pinned below; replies carry it for answer feedback
+
+
+@pytest.fixture(autouse=True)
+def _fixed_request_id(monkeypatch):
+    import uuid
+    monkeypatch.setattr(appmod.uuid, "uuid4", lambda: uuid.UUID(int=0))
 
 
 def decode(chunk):
@@ -39,7 +46,7 @@ def test_progress_is_sent_before_each_real_stage(monkeypatch):
     assert calls == ["classify"]
     assert decode(next(events)) == ("status", {"stage": "writing"})
     assert calls == ["classify", "build"]
-    assert decode(next(events)) == ("reply", {"reply": "점심 메뉴입니다.\nEnjoy!"})
+    assert decode(next(events)) == ("reply", {"reply": "점심 메뉴입니다.\nEnjoy!", "request_id": RID})
     assert calls == ["classify", "build", "answer"]
     assert list(events) == []
     assert response.mimetype == "text/event-stream"
@@ -54,7 +61,7 @@ def test_greeting_does_not_claim_to_search(monkeypatch):
     response = appmod.app.test_client().post("/chat", json={"message": "hi"}, headers=STREAM_HEADERS)
     events = [decode(chunk) for chunk in response.response]
     assert events == [("status", {"stage": "understanding"}),
-                      ("status", {"stage": "writing"}), ("reply", {"reply": "Hi!"})]
+                      ("status", {"stage": "writing"}), ("reply", {"reply": "Hi!", "request_id": RID})]
 
 
 def test_stream_and_json_use_identical_answer_pipeline(monkeypatch):
@@ -64,7 +71,7 @@ def test_stream_and_json_use_identical_answer_pipeline(monkeypatch):
     streamed = client.post("/chat", json={"message": "my art"}, headers=STREAM_HEADERS)
     event, payload = [decode(chunk) for chunk in streamed.response][-1]
     assert event == "reply"
-    assert payload == ordinary.get_json() == {"reply": appmod.PERSONAL_ACTIVITY_REPLY}
+    assert payload == ordinary.get_json() == {"reply": appmod.PERSONAL_ACTIVITY_REPLY, "request_id": RID}
 
 
 def test_data_failure_terminates_with_error_event(monkeypatch):

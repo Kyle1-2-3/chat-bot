@@ -212,6 +212,55 @@
   }
   .copy-btn:hover { color: var(--text); }
   .copy-btn .icon { width: 13px; height: 13px; }
+  .copy-btn + .copy-btn { margin-left: 14px; }
+  /* Touch screens have no hover: keep Copy / Report visible under each answer. */
+  @media (hover: none) { .bot-actions { height: auto; opacity: 1; } }
+
+  /* ---------------- Answer feedback ---------------- */
+  .feedback-dialog {
+    width: min(480px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line-strong);
+    border-radius: 16px; color: var(--text); background: var(--bg-2);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  }
+  .feedback-dialog::backdrop { background: rgba(0, 0, 0, 0.66); }
+  .feedback-form { padding: 22px; }
+  .feedback-title { margin: 0; font-size: 19px; font-weight: 600; }
+  .feedback-subtitle { margin: 6px 0 18px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+  .feedback-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 16px; border: 0; padding: 0; }
+  .feedback-option { position: relative; }
+  .feedback-option input { position: absolute; opacity: 0; pointer-events: none; }
+  .feedback-option span {
+    display: flex; align-items: center; min-height: 42px; padding: 9px 12px;
+    border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-3);
+    color: var(--muted); font-size: 13.5px; font-weight: 500; cursor: pointer;
+  }
+  .feedback-option input:checked + span { border-color: var(--red); background: var(--red-soft); color: var(--text); }
+  .feedback-option input:focus-visible + span { box-shadow: var(--focus); }
+  .feedback-label { display: block; margin: 0 0 6px; color: var(--muted); font-size: 13px; font-weight: 500; }
+  #feedbackDetails {
+    display: block; width: 100%; min-height: 88px; resize: vertical; padding: 10px 12px;
+    border: 1px solid var(--line-strong); border-radius: var(--radius); outline: none;
+    background: var(--bg-3); color: var(--text); font: 14.5px/1.5 var(--font);
+  }
+  #feedbackDetails:focus { border-color: var(--red); }
+  #feedbackDetails::placeholder { color: var(--dim); }
+  .feedback-status { min-height: 18px; margin: 8px 0 0; color: var(--warn); font-size: 13px; }
+  .feedback-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+  .feedback-action { min-height: 38px; padding: 8px 16px; border: 0; border-radius: 999px; font: 500 14px var(--font); cursor: pointer; }
+  .feedback-cancel { background: transparent; color: var(--muted); }
+  .feedback-cancel:hover { color: var(--text); }
+  .feedback-submit { background: var(--red); color: #fff; }
+  .feedback-submit:hover { background: var(--red-hover); }
+  .feedback-submit:disabled { opacity: 0.55; cursor: default; }
+  .feedback-toast {
+    position: fixed; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom)); z-index: 100;
+    transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
+    padding: 9px 16px; border: 1px solid var(--line-strong); border-radius: 999px;
+    background: var(--bg-3); color: var(--text); font-size: 13.5px; font-weight: 500;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .feedback-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+  @media (max-width: 679px) { .feedback-options { grid-template-columns: 1fr; } }
 
   .typing { display: inline-flex; align-items: center; gap: 12px; padding: 6px 1px; min-height: 28px; }
   .typing-dots { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
@@ -530,6 +579,27 @@
     </aside>
   </div>
 
+<dialog class="feedback-dialog" id="feedbackDialog" aria-labelledby="feedbackTitle">
+  <form class="feedback-form" id="feedbackForm">
+    <h2 class="feedback-title" id="feedbackTitle">What was wrong with this answer?</h2>
+    <p class="feedback-subtitle">Your question and the answer go to a private queue the site owner reviews to improve the assistant.</p>
+    <fieldset class="feedback-options" aria-label="Problem type">
+      <label class="feedback-option"><input type="radio" name="issueType" value="incorrect" checked><span>Wrong answer</span></label>
+      <label class="feedback-option"><input type="radio" name="issueType" value="unanswered"><span>Didn't understand</span></label>
+      <label class="feedback-option"><input type="radio" name="issueType" value="outdated"><span>Outdated information</span></label>
+      <label class="feedback-option"><input type="radio" name="issueType" value="unclear"><span>Confusing answer</span></label>
+    </fieldset>
+    <label class="feedback-label" for="feedbackDetails">What should it have said? (optional)</label>
+    <textarea id="feedbackDetails" maxlength="1500" placeholder="The correct answer, or what was missing…"></textarea>
+    <p class="feedback-status" id="feedbackStatus" aria-live="polite"></p>
+    <div class="feedback-actions">
+      <button type="button" class="feedback-action feedback-cancel" id="feedbackCancel">Cancel</button>
+      <button type="submit" class="feedback-action feedback-submit" id="feedbackSubmit">Send report</button>
+    </div>
+  </form>
+</dialog>
+<div class="feedback-toast" id="feedbackToast" role="status" aria-live="polite">Thanks — sent for review.</div>
+
 <script src="/chat-progress.js"></script>
 <script>
   // ============================================================
@@ -540,6 +610,7 @@
   // ============================================================
   const API_ENDPOINT = "/chat";
   const EVENTS_ENDPOINT = "/api/upcoming-events";
+  const FEEDBACK_ENDPOINT = "/api/feedback";
   const MAX_CHARS = 500;
   const SHOW_COUNTER_AT = 400;
   const WARN_AT = 450;
@@ -569,6 +640,7 @@
   let activeRequest = null;
 
   const ICON_COPY  = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  const ICON_FLAG  = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 5h11l-1.5 4L16 13H5"/></svg>';
   const ICON_RETRY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
   // ---------------- Composer behavior ----------------
@@ -684,7 +756,7 @@
     }
   }
 
-  function renderReply(bubble, col, text) {
+  function renderReply(bubble, col, text, question, requestId) {
     renderRichText(bubble, text);
     const actions = document.createElement("div");
     actions.className = "bot-actions";
@@ -698,9 +770,65 @@
       });
     });
     actions.appendChild(copyBtn);
+    const reportBtn = document.createElement("button");
+    reportBtn.type = "button"; reportBtn.className = "copy-btn";
+    reportBtn.innerHTML = ICON_FLAG + "<span>Report answer</span>";
+    reportBtn.addEventListener("click", () => openFeedback({ question, answer: text, requestId }, reportBtn));
+    actions.appendChild(reportBtn);
     col.appendChild(actions);
     scrollToBottom();
   }
+
+  // ---------------- Answer feedback (POST /api/feedback) ----------------
+  const feedbackDialog  = $("feedbackDialog");
+  const feedbackForm    = $("feedbackForm");
+  const feedbackDetails = $("feedbackDetails");
+  const feedbackStatus  = $("feedbackStatus");
+  const feedbackSubmit  = $("feedbackSubmit");
+  const feedbackToast   = $("feedbackToast");
+  let pendingFeedback = null;
+
+  function openFeedback(payload, button) {
+    pendingFeedback = { ...payload, button };
+    feedbackForm.reset();
+    feedbackStatus.textContent = "";
+    feedbackSubmit.disabled = false;
+    feedbackSubmit.textContent = "Send report";
+    feedbackDialog.showModal();
+  }
+  $("feedbackCancel").addEventListener("click", () => feedbackDialog.close());
+  feedbackDialog.addEventListener("click", (e) => { if (e.target === feedbackDialog) feedbackDialog.close(); });
+  feedbackForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!pendingFeedback) return;
+    feedbackSubmit.disabled = true;
+    feedbackSubmit.textContent = "Sending…";
+    feedbackStatus.textContent = "";
+    try {
+      const res = await fetch(FEEDBACK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: pendingFeedback.question,
+          answer: pendingFeedback.answer,
+          request_id: pendingFeedback.requestId || "",
+          issue_type: new FormData(feedbackForm).get("issueType"),
+          details: feedbackDetails.value.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const btn = pendingFeedback.button;
+      if (btn) { btn.disabled = true; btn.querySelector("span").textContent = "Reported"; }
+      pendingFeedback = null;
+      feedbackDialog.close();
+      feedbackToast.classList.add("is-visible");
+      setTimeout(() => feedbackToast.classList.remove("is-visible"), 2400);
+    } catch (err) {
+      feedbackStatus.textContent = "Couldn’t send this report. Please try again.";
+      feedbackSubmit.disabled = false;
+      feedbackSubmit.textContent = "Send report";
+    }
+  });
 
   function renderError(bubble, col, lastUserText, serverMessage) {
     bubble.innerHTML = "";
@@ -776,7 +904,7 @@
       if (activeRequest !== controller) return;
       const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());
       const reply = hasReply ? data.reply : "I’m sorry — I didn’t catch that. Could you try rephrasing?";
-      renderReply(bubble, col, reply);
+      renderReply(bubble, col, reply, userText, data && data.request_id);
       if (hasReply) conversation.push({ role: "bot", text: reply });
     } catch (err) {
       deadline.stop();
