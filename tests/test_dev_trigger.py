@@ -45,7 +45,7 @@ def test_trigger_phrase_stripped_and_no_school_system_prompt(monkeypatch):
         "/chat", json={"message": f"{TRIGGER} tell me a joke"})
     kw = calls[0]
     cfg = kw.get("config")
-    assert cfg is None or getattr(cfg, "system_instruction", None) is None
+    assert cfg.system_instruction == appmod.ENGLISH_ONLY_INSTRUCTION
     assert TRIGGER not in kw["contents"]
     assert "tell me a joke" in kw["contents"]
 
@@ -57,11 +57,13 @@ def test_trigger_passes_memory_context(monkeypatch):
     assert "User: hi" in calls[0]["contents"]
 
 
-def test_trigger_answers_in_korean(monkeypatch):
+@pytest.mark.parametrize("question", ["한국어로 대답해줘", "日本語で答えてください"])
+def test_trigger_uses_english_policy_for_any_question_language(monkeypatch, question):
     calls = _capture_llm(monkeypatch)
     appmod.app.test_client().post(
-        "/chat", json={"message": f"{TRIGGER} say hi"})
-    assert "Korean only" in calls[0]["contents"]
+        "/chat", json={"message": f"{TRIGGER} {question}"})
+    assert question in calls[0]["contents"]
+    assert "English only" in calls[0]["config"].system_instruction
 
 
 def test_trigger_keeps_deep_memory(monkeypatch):
