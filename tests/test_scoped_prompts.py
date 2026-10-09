@@ -80,7 +80,8 @@ def test_model_receives_only_selected_rules_and_scoped_data(monkeypatch):
     bot.generate_answer("목요일 수업 시간표 알려줘", [{"schedule_focus": "ACADEMIC"}], [data])
     sent = json.loads(captured["contents"])["results"]
     assert "afternoon" not in sent[0]
-    assert captured["config"].system_instruction == answer_system_for(sent)
+    assert captured["config"].system_instruction.startswith(answer_system_for(sent))
+    assert "Current school date/time:" in captured["config"].system_instruction
     assert ANSWER_RULES["SCHOOL_INFO"].strip() not in captured["config"].system_instruction
 
 

@@ -4,6 +4,7 @@ __pycache__
 *.pyc
 .env
 db/*.db
+<<<<<<< HEAD
 .git
 .github
 .pytest_cache
@@ -11,3 +12,7 @@ design-drafts
 docs
 tests
 scripts
+=======
+var/
+.git/
+>>>>>>> origin/main

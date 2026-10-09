@@ -28,6 +28,9 @@ jobs:
       - run: node --test tests/chat-progress.test.cjs
       - run: pip install -r requirements.txt
       - run: python set_up_db.py
+      - run: gunicorn --check-config app:app
+        env:
+          GEMINI_API_KEY: ci-dummy-key
       - run: python -m pytest tests/ -q
         env:
           # app.py builds a genai client at import; any non-empty key works

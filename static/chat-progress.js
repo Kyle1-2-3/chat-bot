@@ -4,6 +4,25 @@
   const MIN_REPLY_MS = 1000;
   const SHOW_PROGRESS_MS = 4000;
 
+  function createIdleDeadline(onTimeout, timeoutMs, clock = {}) {
+    const schedule = clock.setTimeout || setTimeout;
+    const cancel = clock.clearTimeout || clearTimeout;
+    let timer, stopped = false;
+    function touch() {
+      if (stopped) return;
+      cancel(timer);
+      timer = schedule(() => { stopped = true; onTimeout(); }, timeoutMs);
+    }
+    touch();
+    return { touch, stop() { stopped = true; cancel(timer); } };
+  }
+
+  function replyError(message, payload) {
+    const error = new Error(message);
+    if (payload && typeof payload.reply === "string") error.userMessage = payload.reply;
+    return error;
+  }
+
   function createWaitState(onStatus, clock = {}) {
     const now = clock.now || (() => performance.now());
     const schedule = clock.setTimeout || setTimeout;
@@ -34,7 +53,10 @@
   }
 
   async function readReply(response, onStatus) {
-    if (!response.ok) throw new Error("HTTP " + response.status);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw replyError("HTTP " + response.status, payload);
+    }
     if (!(response.headers.get("Content-Type") || "").includes("text/event-stream")) {
       return response.json(); // Older servers and non-streaming clients stay compatible.
     }
@@ -60,7 +82,7 @@
           const payload = JSON.parse(data.join("\n"));
           if (event === "status") onStatus(payload.stage);
           else if (event === "reply") return payload;
-          else if (event === "error") throw new Error("Reply could not be completed");
+          else if (event === "error") throw replyError("Reply could not be completed", payload);
         }
         if (done) throw new Error("Response ended before a reply arrived");
       }
@@ -70,6 +92,6 @@
     }
   }
 
-  root.ChatProgress = { createWaitState, readReply };
+  root.ChatProgress = { createWaitState, createIdleDeadline, readReply };
   if (typeof module !== "undefined") module.exports = root.ChatProgress;
 })(globalThis);
