@@ -73,6 +73,7 @@ def test_personal_activity_uses_static_redirect_without_looking_up_another_stude
 
 
 def test_mixed_question_keeps_personal_redirect_and_other_answer(monkeypatch):
+    monkeypatch.setattr(appmod, "today", lambda: date(2026, 9, 23))  # next Monday is a normal school day
     monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
         {"intent": "PERSONAL_ACTIVITY", "day_ref": "ANY"},
         {"intent": "AFTERNOON", "day_ref": "MONDAY"},

@@ -4,3 +4,10 @@ __pycache__
 *.pyc
 .env
 db/*.db
+.git
+.github
+.pytest_cache
+design-drafts
+docs
+tests
+scripts

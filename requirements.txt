@@ -1,7 +1,7 @@
 flask
 flask-limiter
 python-dotenv
-google-genai
+google-genai>=1.55
 gunicorn
 certifi
 tzdata>=2026.2

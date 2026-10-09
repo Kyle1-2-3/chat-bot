@@ -47,7 +47,7 @@ def make_db(tmp_path, monkeypatch):
 
 def test_sidebar_shows_only_upcoming_public_events_and_caps(monkeypatch, tmp_path):
     make_db(tmp_path, monkeypatch)
-    response = appmod.app.test_client().get("/upcoming-events")
+    response = appmod.app.test_client().get("/api/upcoming-events")
     assert response.status_code == 200
     assert response.get_json() == {"events": [
         regular("2026-09-30", "Tutorial"),
@@ -59,13 +59,12 @@ def test_sidebar_shows_only_upcoming_public_events_and_caps(monkeypatch, tmp_pat
 def test_sidebar_omits_private_events_and_blocks(monkeypatch, tmp_path):
     make_db(tmp_path, monkeypatch)
     monkeypatch.setattr(appmod, "current_school_time", lambda: clock("2026-10-03T08:00"))
-    assert appmod.app.test_client().get("/upcoming-events").get_json() == {"events": []}
+    assert appmod.app.test_client().get("/api/upcoming-events").get_json() == {"events": []}
 
 
-def test_sidebar_api_alias_matches_public_endpoint(monkeypatch, tmp_path):
-    make_db(tmp_path, monkeypatch)
-    client = appmod.app.test_client()
-    assert client.get("/api/upcoming-events").get_json() == client.get("/upcoming-events").get_json()
+def test_bare_upcoming_events_alias_is_gone():
+    # nginx proxies only /api/*, so the bare path never worked in production.
+    assert appmod.app.test_client().get("/upcoming-events").status_code != 200
 
 
 def test_special_events_outrank_earlier_routine_periods(monkeypatch, tmp_path):

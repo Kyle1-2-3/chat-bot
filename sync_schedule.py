@@ -47,6 +47,13 @@ SATURDAY_PERIODS = (("10:15", "11:00"), ("11:10", "11:55"), ("12:05", "12:50"))
 COMMON_NAMED_ITEMS = {0: "ADVISORY", 1: "TUTORIAL", 3: "ASSEMBLY", 4: "TUTORIAL"}
 
 
+def renumber(rows: list[dict]) -> None:
+    """Sort a day's rows by start time and give them sequential item_order (1-based)."""
+    rows.sort(key=lambda r: r["start_time"])
+    for index, row in enumerate(rows, 1):
+        row["item_order"] = index
+
+
 def complete_common_timetable(by_date: dict[str, list[dict]]) -> int:
     """Fill personal free periods from a uniquely evidenced school rotation.
 
@@ -86,9 +93,7 @@ def complete_common_timetable(by_date: dict[str, list[dict]]) -> int:
             if named and not any(r["item_type"] == named for r in rows):
                 rows.append({"item_type": named, "block_code": None,
                              "start_time": "09:55", "end_time": "10:20"})
-            rows.sort(key=lambda r: r["start_time"])
-            for index, row in enumerate(rows, 1):
-                row["item_order"] = index
+            renumber(rows)
     return completed
 
 
@@ -181,10 +186,8 @@ def parse_ical(text: str) -> dict[str, list[dict]]:
                 "start_time": start_time, "end_time": end_time,
             })
 
-    for date_key, rows in by_date.items():
-        rows.sort(key=lambda r: r["start_time"])
-        for i, r in enumerate(rows, start=1):
-            r["item_order"] = i
+    for rows in by_date.values():
+        renumber(rows)
 
     return by_date
 
@@ -220,9 +223,7 @@ def add_fixed_timeline_items(by_date: dict[str, list[dict]]) -> None:
                 "start_time": start,
                 "end_time": end,
             })
-        rows.sort(key=lambda r: r["start_time"])
-        for i, r in enumerate(rows, start=1):
-            r["item_order"] = i
+        renumber(rows)
 
 
 def apply_schedule(conn: sqlite3.Connection, by_date: dict[str, list[dict]],
@@ -239,7 +240,8 @@ def apply_schedule(conn: sqlite3.Connection, by_date: dict[str, list[dict]],
         for date_key, rows in by_date.items():
             if from_date and date_key < from_date.isoformat():
                 continue
-            conn.execute("DELETE FROM ScheduleTimeline WHERE sched_date = ?", (date_key,))
+            if not from_date:  # with from_date every kept date was already cleared above
+                conn.execute("DELETE FROM ScheduleTimeline WHERE sched_date = ?", (date_key,))
             for r in rows:
                 conn.execute("""
                     INSERT INTO ScheduleTimeline(sched_date, item_type, block_code, start_time, end_time, item_order, event_name, all_day)

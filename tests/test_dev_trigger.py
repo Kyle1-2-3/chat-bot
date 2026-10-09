@@ -1,8 +1,16 @@
 from types import SimpleNamespace
 
+import pytest
+
 import app as appmod
 
-TRIGGER = "/천마리의새가우는소리"
+TRIGGER = "/test-dev-trigger"
+
+
+@pytest.fixture(autouse=True)
+def _dev_trigger(monkeypatch):
+    """The real phrase is private (server .env); tests use a stand-in."""
+    monkeypatch.setattr(appmod, "DEV_TRIGGER", TRIGGER)
 
 
 def _capture_llm(monkeypatch, reply="raw gemini reply"):
@@ -64,6 +72,18 @@ def test_trigger_keeps_deep_memory(monkeypatch):
         "/chat", json={"message": f"{TRIGGER} continue", "memory": memory})
     contents = calls[0]["contents"]
     assert "q0" in contents and "q9" in contents  # oldest and newest both survive
+
+
+def test_unset_trigger_never_bypasses_pipeline(monkeypatch):
+    monkeypatch.setattr(appmod, "DEV_TRIGGER", "")
+    calls = _capture_llm(monkeypatch)
+    monkeypatch.setattr(appmod, "classify_query", lambda msg, memory="": [
+        {"intent": "GREETING", "day_ref": "ANY", "meal_type": None},
+    ])
+    monkeypatch.setattr(appmod, "generate_answer", lambda *a, **k: "school bot reply")
+    resp = appmod.app.test_client().post("/chat", json={"message": "hello there"})
+    assert resp.get_json()["reply"] == "school bot reply"
+    assert calls == []  # no raw Gemini call when the cheat is disabled
 
 
 def test_normal_messages_still_use_pipeline(monkeypatch):

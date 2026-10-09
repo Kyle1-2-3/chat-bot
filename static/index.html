@@ -12,8 +12,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<!-- Only needed to render replies, so they must not block the first paint. -->
+<script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <style>
   /* ============================================================
      Brentwood Assistant
@@ -304,8 +306,8 @@
   .map-status { font-size: 13px; color: var(--dim); white-space: nowrap; }
   .map-status.is-error { color: var(--warn); }
   .map-stage { flex: 1 1 auto; overflow: auto; padding: 16px; }
-  .map-canvas { position: relative; max-width: 1200px; min-width: 720px; margin: 0 auto; }
-  .map-canvas img { display: block; width: 100%; border-radius: 10px; user-select: none; -webkit-user-select: none; }
+  .map-canvas { position: relative; max-width: 2424px; min-width: 1500px; margin: 0 auto; }
+  .map-canvas img { display: block; width: 100%; height: auto; border-radius: 10px; user-select: none; -webkit-user-select: none; }
   .map-pin { position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
   .map-pin__dot {
     display: block; width: 16px; height: 16px; box-sizing: border-box;
@@ -503,7 +505,7 @@
       </div>
       <div class="map-stage">
         <div class="map-canvas">
-          <img src="campus-map.png" alt="Brentwood College School campus map" draggable="false" />
+          <img src="campus-map.webp" width="2424" height="1935" alt="Brentwood College School campus map" draggable="false" loading="lazy" decoding="async" />
           <div class="map-pin" id="mapPin" hidden>
             <span class="map-pin__dot"></span>
             <span class="map-pin__label" id="mapPinLabel"></span>
@@ -538,7 +540,6 @@
   // ============================================================
   const API_ENDPOINT = "/chat";
   const EVENTS_ENDPOINT = "/api/upcoming-events";
-  const CALENDAR_URL = "https://www.brentwood.ca/calendar/";
   const MAX_CHARS = 500;
   const SHOW_COUNTER_AT = 400;
   const WARN_AT = 450;
@@ -660,13 +661,17 @@
   }
 
   // Open links from replies in a new tab so a student never loses the chat.
-  if (window.DOMPurify) {
+  // Registered on first use: the CDN scripts are deferred, so they load after this inline code.
+  let linkHookAdded = false;
+  function addLinkHook() {
+    if (linkHookAdded) return;
     DOMPurify.addHook("afterSanitizeAttributes", function (node) {
       if (node.tagName === "A" && node.getAttribute("href")) {
         node.setAttribute("target", "_blank");
         node.setAttribute("rel", "noopener noreferrer");
       }
     });
+    linkHookAdded = true;
   }
 
   // Render an AI reply as sanitized markdown (bold, lists, etc.). Falls back
@@ -674,6 +679,7 @@
   function renderRichText(el, text) {
     try {
       if (!window.marked || !window.DOMPurify) throw new Error("md libs unavailable");
+      addLinkHook();
       el.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true }));
     } catch (e) {
       el.style.whiteSpace = "pre-wrap";
@@ -723,12 +729,13 @@
   }
 
   // ---------------- Memory (turns prior to the in-flight message) ----------------
-  const DEV_TRIGGER = "/천마리의새가우는소리";
-  function buildMemory(userText = "") {
+  // Send the last ~10 Q&A pairs; the server keeps only the newest characters it
+  // needs per path (a short window for the school pipeline, a deeper one for
+  // dev raw-chat), so the client needs no knowledge of the dev trigger.
+  const MEMORY_TURNS = 20;
+  function buildMemory() {
     const prior = conversation.slice(0, -1);
-    // Dev raw-chat gets a deeper window (~10 Q&A pairs) than the normal 4 turns.
-    const turns = userText.includes(DEV_TRIGGER) ? 20 : 4;
-    return prior.slice(-turns)
+    return prior.slice(-MEMORY_TURNS)
       .map(t => (t.role === "user" ? "Student" : "Assistant") + ": " + t.text)
       .join("\n");
   }
@@ -748,9 +755,15 @@
     const { bubble, col } = makeBotTurn();
     const waiting = ChatProgress.createWaitState(showTyping(bubble, userText));
 
-    const memory = buildMemory(userText);
+    const memory = buildMemory();
+    // Idle deadline: every progress event from the server restarts it, so a
+    // slow-but-alive reply (two Gemini calls) isn't cut off and retried.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const extendDeadline = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    };
 
     try {
       const res = await fetch(API_ENDPOINT, {
@@ -759,7 +772,7 @@
         body: JSON.stringify({ message: userText, memory }),
         signal: controller.signal,
       });
-      const data = await ChatProgress.readReply(res, stage => waiting.update(stage));
+      const data = await ChatProgress.readReply(res, stage => { extendDeadline(); waiting.update(stage); });
       clearTimeout(timer);
       await waiting.finish();
       const hasReply = !!(data && typeof data.reply === "string" && data.reply.trim());
@@ -932,38 +945,39 @@
       eventsEl.appendChild(p);
     }
   }
-  $("calendarLink").href = CALENDAR_URL;
   loadEvents();
 
   // ---------------- Campus map search ----------------
   // x/y are percentages of the map image (1536x1024).
   const BUILDINGS = [
-    { name: "Crooks Hall", aliases: ["dining hall", "cafeteria", "student centre", "student center", "fitness centre", "fitness center", "tuck shop", "laundry"], x: 25.6, y: 77.0 },
-    { name: "Campbell Common", aliases: ["common"], x: 32.7, y: 78.0 },
-    { name: "Centre for Arts & Humanities", aliases: ["humanities", "arts and humanities"], x: 39.5, y: 78.5 },
-    { name: "Centre for Innovation and Learning", aliases: ["innovation", "cfil"], x: 55.0, y: 77.5 },
-    { name: "TGB Centre for Performing Arts", aliases: ["performing arts", "theatre", "theater", "tgb"], x: 29.3, y: 64.0 },
-    { name: "Hope House", aliases: [], x: 28.6, y: 45.5 },
-    { name: "Allard House", aliases: [], x: 35.2, y: 52.5 },
-    { name: "Mackenzie House", aliases: [], x: 42.6, y: 55.5 },
-    { name: "Alex House", aliases: [], x: 51.4, y: 62.8 },
-    { name: "Rogers House", aliases: [], x: 55.5, y: 45.8 },
-    { name: "Whittall House", aliases: [], x: 63.5, y: 53.0 },
-    { name: "Ellis House", aliases: [], x: 72.4, y: 46.8 },
-    { name: "Privett House", aliases: [], x: 70.0, y: 56.7 },
-    { name: "Woodward", aliases: ["admin", "administration", "admissions"], x: 83.8, y: 45.3 },
-    { name: "Maeda Health Centre", aliases: ["health", "nurse", "clinic", "maeda"], x: 79.0, y: 51.5 },
-    { name: "Foote Athletic Centre", aliases: ["gym", "athletics", "foote"], x: 84.0, y: 16.5 },
-    { name: "Artificial Turf", aliases: ["turf"], x: 85.3, y: 33.5 },
-    { name: "Field 1", aliases: [], x: 23.4, y: 23.0 },
-    { name: "Field 2", aliases: [], x: 37.8, y: 13.5 },
-    { name: "Field 3 (Gillespie Field)", aliases: ["gillespie"], x: 56.6, y: 29.5 },
-    { name: "Field 4", aliases: [], x: 69.5, y: 29.0 },
-    { name: "Tennis Courts", aliases: ["tennis"], x: 38.3, y: 29.0 },
-    { name: "Main Gate", aliases: ["gate", "entrance"], x: 48.0, y: 8.5 },
-    { name: "Grounds", aliases: [], x: 62.3, y: 8.8 },
-    { name: "Dock Area", aliases: ["dock", "waterfront", "pier"], x: 54.5, y: 93.5 },
-    { name: "Visitor Parking", aliases: ["parking"], x: 21.0, y: 51.0 },
+    // x/y are percentages of the map image (static/campus-map.webp, the official printed campus map).
+    { name: "Crooks Hall", aliases: ["dining hall", "cafeteria", "student centre", "student center", "fitness centre", "fitness center", "tuck shop", "laundry", "mcneill", "school store"], x: 27.0, y: 79.5 },
+    { name: "Campbell Common", aliases: ["common"], x: 33.6, y: 81.4 },
+    { name: "Centre for Arts & Humanities", aliases: ["humanities", "arts and humanities", "art & humanities"], x: 39.4, y: 82.2 },
+    { name: "Centre for Innovation and Learning", aliases: ["innovation", "cfil"], x: 53.0, y: 79.3 },
+    { name: "TGB Centre for Performing Arts", aliases: ["performing arts", "theatre", "theater", "tgb"], x: 31.8, y: 70.5 },
+    { name: "Hope House", aliases: [], x: 33.0, y: 57.1 },
+    { name: "Allard House", aliases: [], x: 37.7, y: 62.3 },
+    { name: "Mackenzie House", aliases: [], x: 43.1, y: 64.3 },
+    { name: "Alex House", aliases: [], x: 50.5, y: 68.2 },
+    { name: "Rogers House", aliases: [], x: 54.0, y: 55.8 },
+    { name: "Whittall House", aliases: [], x: 60.4, y: 60.2 },
+    { name: "Ellis House", aliases: [], x: 69.1, y: 54.5 },
+    { name: "Privett House", aliases: [], x: 66.2, y: 62.3 },
+    { name: "Woodward", aliases: ["admin", "administration", "admissions"], x: 73.6, y: 58.7 },
+    { name: "Maeda Health Centre", aliases: ["health", "nurse", "clinic", "maeda"], x: 30.5, y: 62.8 },
+    { name: "Foote Athletic Centre", aliases: ["gym", "athletics", "foote"], x: 77.3, y: 35.1 },
+    { name: "Artificial Turf", aliases: ["turf"], x: 78.1, y: 45.5 },
+    { name: "Field 1", aliases: [], x: 29.5, y: 40.8 },
+    { name: "Field 2", aliases: [], x: 41.3, y: 33.6 },
+    { name: "Field 3 (Gillespie Field)", aliases: ["gillespie"], x: 55.4, y: 39.8 },
+    { name: "Field 4", aliases: [], x: 66.6, y: 39.8 },
+    { name: "Tennis Courts", aliases: ["tennis"], x: 41.3, y: 44.4 },
+    { name: "Main Gate", aliases: ["gate", "entrance"], x: 49.7, y: 28.2 },
+    { name: "Grounds", aliases: [], x: 63.3, y: 29.5 },
+    { name: "Maintenance", aliases: [], x: 76.3, y: 25.8 },
+    { name: "Dock Area", aliases: ["dock", "waterfront", "pier"], x: 53.6, y: 94.1 },
+    { name: "Visitor Parking", aliases: ["parking"], x: 24.3, y: 61.2 },
   ];
 
   const mapSearchEl = $("mapSearch");
@@ -994,6 +1008,7 @@
       mapPinEl.style.top  = hit.y + "%";
       mapPinLabel.textContent = hit.name;
       mapPinEl.hidden = false;
+      mapPinEl.scrollIntoView({ block: "center", inline: "center", behavior: prefersReducedMotion ? "auto" : "smooth" });
       mapStatusEl.textContent = hit.name;
       mapStatusEl.classList.remove("is-error");
     } else {

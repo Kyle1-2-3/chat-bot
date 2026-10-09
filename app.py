@@ -9,7 +9,6 @@ import httpx
 import os
 import sqlite3
 from datetime import datetime, date, timedelta
-from zoneinfo import ZoneInfo
 import calendar
 import json
 import logging
@@ -21,6 +20,7 @@ from school_knowledge import search_school_knowledge
 from school_calendar import calendar_result, leave_on
 from school_events import upcoming_events as prioritize_upcoming_events
 from answer_prompts import answer_system_for
+from sync_schedule import SCHOOL_TZ, today
 
 load_dotenv()
 
@@ -28,11 +28,14 @@ load_dotenv()
 # Settings
 # ---------------------------
 DEBUG = False
-SERVER_TAG = ""
 DB_PATH = os.path.join("db", "school.db")
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_TIMEOUT_MS = 15000  # cap each LLM call so a hung request can't tie up a worker
-SCHOOL_TZ = ZoneInfo("America/Vancouver")
+# Neither call needs Gemini's "thinking": the classifier emits fixed-schema JSON and the
+# answer step formats supplied data. Thinking tripled latency (classifier 2.6s -> 0.65s,
+# answer 1.9s -> 0.7s median) with the same facts. thinking_budget=0 is a 2.5-Flash option;
+# revisit if GEMINI_MODEL changes (2.5 Pro rejects a zero budget).
+NO_THINKING = types.ThinkingConfig(thinking_budget=0)
 
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
 logger = logging.getLogger("chatbot")
@@ -56,7 +59,14 @@ def ratelimit_handler(e):
 
 client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY"),
-    http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS),
+    http_options=types.HttpOptions(
+        timeout=GEMINI_TIMEOUT_MS,
+        # One quick retry for transient overload/quota errors (waits ~0.5-1.5s).
+        retry_options=types.HttpRetryOptions(
+            attempts=2, initial_delay=0.5, max_delay=2,
+            http_status_codes=[408, 429, 500, 502, 503, 504],
+        ),
+    ),
 )
 
 # ---------------------------
@@ -79,13 +89,6 @@ DAYREF_MAP = {
     "MONDAY": 1, "TUESDAY": 2, "WEDNESDAY": 3, "THURSDAY": 4,
     "FRIDAY": 5, "SATURDAY": 6, "SUNDAY": 7
 }
-
-def today() -> date:
-    """Current date, overridable via FAKE_TODAY (YYYY-MM-DD) for testing."""
-    override = (os.getenv("FAKE_TODAY") or "").strip()
-    if override:
-        return datetime.strptime(override, "%Y-%m-%d").date()
-    return datetime.now(SCHOOL_TZ).date()
 
 def resolve_date(day_ref: str, user_msg: str = "") -> date:
     """Resolve a day_ref to an actual calendar date (blocks rotate, so dates matter)."""
@@ -179,24 +182,43 @@ _MEAL_ORDER = " ORDER BY mt.meal_type_id, gg.group_id"
 MEAL_SIGNIN_EXEMPT_GRADES = {12}
 
 
-def apply_meal_grade_rules(rows: list[dict], grade: int | None = None) -> list[dict]:
-    """Split a shared meal row only where grades have different sign-in rules."""
-    grade_rows = query("""
+def fetch_grade_rows(boarding_only: bool = False) -> list[dict]:
+    """Each grade with its Junior/Senior group name; boarding_only drops Grade 8 (day students)."""
+    return query("""
         SELECT g.grade_id, gg.group_name FROM Grades g
-        JOIN GradeGroups gg ON gg.group_id = g.group_id ORDER BY g.grade_id
-    """)
+        JOIN GradeGroups gg ON gg.group_id = g.group_id
+        WHERE g.grade_id >= ? ORDER BY g.grade_id
+    """, (9 if boarding_only else 0,))
+
+
+def grade_label(grades) -> str:
+    return "Grade " + ", ".join(map(str, grades))
+
+
+def split_rows_by_grade(rows, grade_rows, grade, field, value_for) -> list[dict]:
+    """Split each shared Junior/Senior row where its grades get different `field` values.
+
+    value_for(row, grade_id) gives that grade's value; grades sharing a value stay in one
+    row, labelled with the group name when it covers the whole group, else "Grade N, M".
+    """
     result = []
     for row in rows:
         group_grades = [g["grade_id"] for g in grade_rows if g["group_name"] == row["group_name"]]
-        relevant = [g for g in group_grades if grade is None or g == grade]
-        by_requirement = {}
-        for grade_id in relevant:
-            required = int(bool(row["requires_signin"]) and grade_id not in MEAL_SIGNIN_EXEMPT_GRADES)
-            by_requirement.setdefault(required, []).append(grade_id)
-        for required, grades in by_requirement.items():
-            label = row["group_name"] if grades == group_grades else "Grade " + ", ".join(map(str, grades))
-            result.append({**row, "group_name": label, "grade_ids": grades, "requires_signin": required})
+        by_value = {}
+        for grade_id in group_grades:
+            if grade is None or grade_id == grade:
+                by_value.setdefault(value_for(row, grade_id), []).append(grade_id)
+        for value, grades in by_value.items():
+            label = row["group_name"] if grades == group_grades else grade_label(grades)
+            result.append({**row, "group_name": label, "grade_ids": grades, field: value})
     return result
+
+
+def apply_meal_grade_rules(rows: list[dict], grade: int | None = None) -> list[dict]:
+    """Split a shared meal row only where grades have different sign-in rules."""
+    return split_rows_by_grade(
+        rows, fetch_grade_rows(), grade, "requires_signin",
+        lambda row, g: int(bool(row["requires_signin"]) and g not in MEAL_SIGNIN_EXEMPT_GRADES))
 
 
 def fetch_meal(day_id: int, meal_type: str, grade: int | None = None) -> list[dict]:
@@ -218,25 +240,12 @@ def fetch_dorm_signins(day_id: int, grade: int | None = None) -> list[dict]:
         WHERE ds.day_id = ? AND rt.type_name = 'SIGN_IN'
         ORDER BY gg.group_id, dsr.rule_order
     """, (day_id,))
-    grade_rows = query("""
-        SELECT g.grade_id, gg.group_name FROM Grades g
-        JOIN GradeGroups gg ON gg.group_id = g.group_id
-        WHERE g.grade_id BETWEEN 9 AND 12 ORDER BY g.grade_id
-    """)
+    grade_rows = fetch_grade_rows(boarding_only=True)
     overrides = {(r["grade_id"], r["rule_order"]): r["start_time"] for r in query(
         "SELECT grade_id, rule_order, start_time FROM DormSigninOverrides WHERE day_id = ?", (day_id,))}
-    result = []
-    for row in rows:
-        group_grades = [g["grade_id"] for g in grade_rows if g["group_name"] == row["group_name"]]
-        relevant = [g for g in group_grades if grade is None or g == grade]
-        by_time = {}
-        for grade_id in relevant:
-            start = overrides.get((grade_id, row["rule_order"]), row["start_time"])
-            by_time.setdefault(start, []).append(grade_id)
-        for start, grades in by_time.items():
-            label = row["group_name"] if grades == group_grades else "Grade " + ", ".join(map(str, grades))
-            result.append({**row, "group_name": label, "grade_ids": grades, "start_time": start})
-    return result
+    return split_rows_by_grade(
+        rows, grade_rows, grade, "start_time",
+        lambda row, g: overrides.get((g, row["rule_order"]), row["start_time"]))
 
 def fetch_timeline_by_date(sched_date: str) -> list[dict]:
     return query("""
@@ -281,12 +290,7 @@ def current_school_time():
     return datetime.combine(today(), datetime.now(SCHOOL_TZ).time(), SCHOOL_TZ)
 
 def fetch_grade_group(grade: int) -> str | None:
-    rows = query("""
-        SELECT gg.group_name
-        FROM Grades g JOIN GradeGroups gg ON g.group_id = gg.group_id
-        WHERE g.grade_id = ?
-    """, (grade,))
-    return rows[0]["group_name"] if rows else None
+    return next((r["group_name"] for r in fetch_grade_rows() if r["grade_id"] == grade), None)
 
 def fetch_bedtime(grade: int, day_id: int) -> dict:
     """has_rule distinguishes 'no bedtime' (row, bedtime NULL) from 'no data' (no row)."""
@@ -536,6 +540,9 @@ _FAST_BLOCK_WORDS = {"block", "blocks", "order", "schedule", "timetable", "class
 _FAST_BLOCK_CORE = {"block", "blocks", "timetable", "schedule"}
 _FAST_MEAL_TYPES = {"breakfast": "BREAKFAST", "lunch": "LUNCH", "dinner": "DINNER", "brunch": "BRUNCH"}
 _FAST_MEALS_DAY = {"meal", "meals", "food", "menu", "menus", "eating", "eat"}
+_FAST_SIGNIN_WORDS = {"sign", "signin", "signins", "time", "times", "when"}
+# A grade stated earlier in the chat must reach the classifier (it carries grade over).
+_GRADE_MENTION = re.compile(r"\b(?:gr|grade)\s*\d|\d+\s*학년", re.I)
 
 def quick_classify(user_msg: str) -> list[dict] | None:
     """Rule-based intent for simple block-order / meal questions; None otherwise."""
@@ -562,31 +569,55 @@ def quick_classify(user_msg: str) -> list[dict] | None:
         if meal_types:
             return [validate_request({"intent": "MEAL", "day_ref": day_ref, "meal_type": meal_types[0]})]
         return [validate_request({"intent": "MEALS_DAY", "day_ref": day_ref})]
+
+    says_signin = "signin" in wordset or "signins" in wordset or any(
+        a == "sign" and b == "in" for a, b in zip(tokens, tokens[1:]))
+    if says_signin and wordset <= _FAST_SIGNIN_WORDS:
+        return [validate_request({"intent": "SIGNIN_SUMMARY", "day_ref": day_ref})]
     return None
+
+LLM_FAILURE_REPLY = "Sorry — something went wrong on my end. Please try again in a moment 🙂"
+
+
+def gemini_text(label: str, **kwargs) -> str | None:
+    """Call Gemini and return the stripped reply text, or None after logging the failure."""
+    try:
+        r = client.models.generate_content(**kwargs)
+        return (r.text or "").strip()
+    except httpx.TimeoutException:
+        logger.error("%s: Gemini call timed out after %sms", label, GEMINI_TIMEOUT_MS)
+    except genai_errors.APIError as e:
+        logger.error("%s: Gemini API error %s: %s", label, e.code, e.message)
+    except Exception:
+        logger.exception("%s failed", label)
+    return None
+
 
 def classify_query(user_msg: str, memory: str = "") -> list[dict]:
     if not user_msg or not user_msg.strip():
         return [dict(UNKNOWN_REQUEST)]
 
     fast = quick_classify(user_msg)
-    if fast:
+    if fast and not (fast[0]["intent"] == "SIGNIN_SUMMARY" and _GRADE_MENTION.search(memory or "")):
         logger.debug("classify_query: fast path -> %s", fast)
         return fast
 
-    memory = (memory or "").strip()[:1500]
+    memory = (memory or "").strip()[-1500:]  # keep the newest turns
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
     prompt = f"Current school date: {today().isoformat()}\n{context}[User Message]\n{user_msg}\n\nReturn JSON only."
+    txt = gemini_text(
+        "classify_query",
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=CLASSIFIER_SYSTEM,
+            temperature=0.0,
+            thinking_config=NO_THINKING,
+        ),
+    )
+    if txt is None:
+        return [dict(UNKNOWN_REQUEST)]
     try:
-        r = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=CLASSIFIER_SYSTEM,
-                temperature=0.0,
-            ),
-        )
-
-        txt = (r.text or "").strip()
         if txt.startswith("```"):
             txt = txt.strip("`").replace("json", "", 1).strip()
 
@@ -612,13 +643,6 @@ def classify_query(user_msg: str, memory: str = "") -> list[dict]:
             if isinstance(item, dict)
         ]
         return requests_out or [dict(UNKNOWN_REQUEST)]
-
-    except httpx.TimeoutException:
-        logger.error("classify_query: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
-        return [dict(UNKNOWN_REQUEST)]
-    except genai_errors.APIError as e:
-        logger.error("classify_query: Gemini API error %s: %s", e.code, e.message)
-        return [dict(UNKNOWN_REQUEST)]
     except Exception:
         logger.exception("classify_query failed")
         return [dict(UNKNOWN_REQUEST)]
@@ -742,7 +766,6 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "GRADE_GROUP":
-        grade = cls.get("grade")
         return {
             "type": "GRADE_GROUP",
             "grade": grade,
@@ -750,7 +773,6 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "BEDTIME":
-        grade = cls.get("grade")
         sched_date = resolve_date(day_ref, user_msg)
         info = fetch_bedtime(grade, sched_date.isoweekday()) if grade is not None \
             else {"has_rule": False, "bedtime": None}
@@ -778,7 +800,6 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
         }
 
     if intent == "SIGNIN_SUMMARY":
-        grade = cls.get("grade")
         dorm_rows = fetch_dorm_signins(day_id, grade)
         meals = fetch_day_meals(day_id, grade)
         meals_requiring = [r for r in meals if int(r.get("requires_signin") or 0) == 1]
@@ -805,8 +826,9 @@ def build_result_from_classification(cls: dict, user_msg: str) -> dict:
 
 # Dev cheat-code: a message containing this phrase skips the school pipeline
 # entirely and talks to Gemini directly (no classifier, no school system
-# prompt) — like chatting with plain Gemini. Keep the phrase private.
-DEV_TRIGGER = "/천마리의새가우는소리"
+# prompt) — like chatting with plain Gemini. The phrase lives only in the
+# server's private .env (DEV_TRIGGER=...); leave it unset to disable the cheat.
+DEV_TRIGGER = (os.getenv("DEV_TRIGGER") or "").strip()
 
 # Raw chat keeps a larger window than the school pipeline (~10 Q&A pairs) so the
 # dev can hold a real back-and-forth instead of a one-shot question.
@@ -816,21 +838,14 @@ RAW_MEMORY_CHARS = 8000
 RAW_LANG_INSTRUCTION = "[Instruction] Respond in Korean only, regardless of the user's language.\n\n"
 
 def generate_raw_answer(user_msg: str, memory: str = "") -> str:
-    memory = (memory or "").strip()[:RAW_MEMORY_CHARS]
+    memory = (memory or "").strip()[-RAW_MEMORY_CHARS:]  # keep the newest turns
     context = f"[Recent conversation]\n{memory}\n\n" if memory else ""
-    try:
-        r = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=f"{RAW_LANG_INSTRUCTION}{context}{user_msg}",
-        )
-        return (r.text or "").strip()
-    except httpx.TimeoutException:
-        logger.error("generate_raw_answer: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
-    except genai_errors.APIError as e:
-        logger.error("generate_raw_answer: Gemini API error %s: %s", e.code, e.message)
-    except Exception:
-        logger.exception("generate_raw_answer failed")
-    return "Sorry — something went wrong on my end. Please try again in a moment 🙂"
+    reply = gemini_text(
+        "generate_raw_answer",
+        model=GEMINI_MODEL,
+        contents=f"{RAW_LANG_INSTRUCTION}{context}{user_msg}",
+    )
+    return LLM_FAILURE_REPLY if reply is None else reply
 
 # Pure where-is questions need no data and no LLM phrasing — answer statically
 # and skip the second Gemini call. Mixed messages still go through the LLM
@@ -866,6 +881,15 @@ def focused_answer_results(classifications: list[dict], results: list[dict]) -> 
             result["meal_signins"] = [{k: v for k, v in row.items()
                                        if k not in {"menu_content", "menu_items"}}
                                       for row in result.get("meal_signins", [])]
+        elif intent == "SCHOOL_INFO":
+            # Retrieval-only fields (keywords/id/category) cost prompt tokens; checked_on is
+            # the same on every record, so state it once.
+            records = result.get("records", [])
+            if records:
+                result["checked_on"] = records[0].get("checked_on")
+            result["records"] = [{k: v for k, v in r.items()
+                                  if k not in {"keywords", "id", "category", "checked_on"}}
+                                 for r in records]
         elif intent == "SCHEDULE":
             focus = validate_request({**cls, "intent": intent})["schedule_focus"]
             result["schedule_focus"] = focus
@@ -875,10 +899,15 @@ def focused_answer_results(classifications: list[dict], results: list[dict]) -> 
     return focused
 
 
+_MD_SPECIAL = re.compile(r"([\\`*_\[\]<>])")
+
+
+def md_escape(value) -> str:
+    return _MD_SPECIAL.sub(r"\\\1", str(value))
+
+
 def render_menu_answer(results: list[dict]) -> str:
     """A menu lookup needs no generated prose, serving times or sign-in advice."""
-    def escape(value):
-        return re.sub(r"([\\`*_\[\]<>])", r"\\\1", str(value))
 
     sections = []
     for result in results:
@@ -889,7 +918,7 @@ def render_menu_answer(results: list[dict]) -> str:
             key = tuple((item["name"], item["search_url"]) for item in items)
             groups = meals.setdefault(meal, {}).setdefault(key, set())
             if row.get("grade_ids"):
-                groups.add("Grade " + ", ".join(map(str, row["grade_ids"])))
+                groups.add(grade_label(row["grade_ids"]))
             elif row.get("group_name"):
                 groups.add(row["group_name"])
         if not meals:
@@ -899,10 +928,10 @@ def render_menu_answer(results: list[dict]) -> str:
         lines = [f"Here's what's on the menu for **{result['day_name']}**:", ""]
         for meal, menus in meals.items():
             for items, groups in menus.items():
-                label = escape(meal.replace("_", " ").title())
+                label = md_escape(meal.replace("_", " ").title())
                 if len(menus) > 1 and groups:
-                    label += " (" + escape(" / ".join(sorted(groups))) + ")"
-                dishes = "; ".join(f"[{escape(name)}]({url})" for name, url in items)
+                    label += " (" + md_escape(" / ".join(sorted(groups))) + ")"
+                dishes = "; ".join(f"[{md_escape(name)}]({url})" for name, url in items)
                 lines.append(f"- **{label}:** {dishes or 'Menu unavailable.'}")
         sections.append("\n".join(lines))
     return "\n\n".join(sections)
@@ -917,13 +946,13 @@ def render_academic_timetable(result: dict) -> str:
         return parsed.strftime("%I:%M %p").lstrip("0")
 
     def line(row, label):
-        label = re.sub(r"([\\`*_\[\]<>])", r"\\\1", str(label))
+        label = md_escape(label)
         start, end = clock(row.get("start_time")), clock(row.get("end_time"))
         when = "All day" if row.get("all_day") else " – ".join(t for t in (start, end) if t)
         return f"- **{label}:** {when or 'Time not listed'}"
 
     labels = {"COOKIE_BREAK": "Cookie Break", "ASSEMBLY": "Assembly",
-              "ADVISORY": "Advisory", "TUTORIAL": "Tutorial"}
+              "ADVISORY": "Advisory", "TUTORIAL": "Tutorial", "INSPECTION": "Inspection"}
     classes, events = [], []
     for row in result.get("rows", []):
         kind = row["item_type"]
@@ -966,27 +995,29 @@ def generate_answer(user_msg: str, classifications: list[dict], results: list[di
         "results": results,
     }
 
-    try:
-        r = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=json.dumps(payload, ensure_ascii=False),
-            config=types.GenerateContentConfig(
-                system_instruction=answer_system_for(results),
-                temperature=0.2,
-            ),
-        )
-        return (r.text or "").strip()
-    except httpx.TimeoutException:
-        logger.error("generate_answer: Gemini call timed out after %sms", GEMINI_TIMEOUT_MS)
-    except genai_errors.APIError as e:
-        logger.error("generate_answer: Gemini API error %s: %s", e.code, e.message)
-    except Exception:
-        logger.exception("generate_answer failed")
-    return "Sorry — something went wrong on my end. Please try again in a moment 🙂"
+    reply = gemini_text(
+        "generate_answer",
+        model=GEMINI_MODEL,
+        contents=json.dumps(payload, ensure_ascii=False),
+        config=types.GenerateContentConfig(
+            system_instruction=answer_system_for(results),
+            temperature=0.2,
+            thinking_config=NO_THINKING,
+        ),
+    )
+    return LLM_FAILURE_REPLY if reply is None else reply
 
 # ---------------------------
 # Routes
 # ---------------------------
+# Result types whose whole answer is a fixed reply (no data, no second Gemini call).
+STATIC_REPLIES = {
+    "LOCATION": LOCATION_REPLY,
+    "PERSONAL_ACTIVITY": PERSONAL_ACTIVITY_REPLY,
+    "PERSONAL_SCHOOL": PERSONAL_SCHOOL_REPLY,
+}
+
+
 def chat_events(user_msg: str, memory: str, req_id: str):
     """The same answer pipeline for JSON and progress-stream clients.
 
@@ -995,7 +1026,7 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     """
     logger.debug("[%s] USER: %s", req_id, user_msg)
 
-    if DEV_TRIGGER in user_msg:
+    if DEV_TRIGGER and DEV_TRIGGER in user_msg:
         logger.info("[%s] dev trigger: raw Gemini chat", req_id)
         raw_msg = user_msg.replace(DEV_TRIGGER, " ").strip() or "Hi!"
         yield "status", {"stage": "writing"}
@@ -1018,16 +1049,10 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     if not actionable:
         if any(c.get("intent") == "GREETING" for c in classifications):
             yield "status", {"stage": "writing"}
-            reply = generate_answer(user_msg, classifications, [{"type": "GREETING"}])
-            if SERVER_TAG:
-                reply = f"{SERVER_TAG} {reply}"
-            yield "reply", {"reply": reply}
+            yield "reply", {"reply": generate_answer(user_msg, classifications, [{"type": "GREETING"}])}
             return
 
-        friendly = "Hey 🙂 I’m not fully sure what you want. You can ask about meals, schedules, sign-in times, school staff, facilities, or student services."
-        if SERVER_TAG:
-            friendly = f"{SERVER_TAG} {friendly}"
-        yield "reply", {"reply": friendly}
+        yield "reply", {"reply": "Hey 🙂 I’m not fully sure what you want. You can ask about meals, schedules, sign-in times, school staff, facilities, or student services."}
         return
 
     yield "status", {"stage": "checking"}
@@ -1041,18 +1066,11 @@ def chat_events(user_msg: str, memory: str, req_id: str):
     logger.debug("[%s] RESULTS: %s", req_id, results)
 
     yield "status", {"stage": "writing"}
-    if all(r["type"] == "LOCATION" for r in results):
-        reply = LOCATION_REPLY
-    elif all(r["type"] == "PERSONAL_ACTIVITY" for r in results):
-        reply = PERSONAL_ACTIVITY_REPLY
-    elif all(r["type"] == "PERSONAL_SCHOOL" for r in results):
-        reply = PERSONAL_SCHOOL_REPLY
+    types_seen = {r["type"] for r in results}
+    if len(types_seen) == 1 and next(iter(types_seen)) in STATIC_REPLIES:
+        reply = STATIC_REPLIES[next(iter(types_seen))]
     else:
         reply = generate_answer(user_msg, actionable, results)
-
-    if SERVER_TAG:
-        reply = f"{SERVER_TAG} {reply}"
-
     yield "reply", {"reply": reply}
 
 
@@ -1061,8 +1079,12 @@ def chat_events(user_msg: str, memory: str, req_id: str):
 def chat():
     req_id = str(uuid.uuid4())[:8]
     data = request.get_json(silent=True) or {}
-    user_msg = (data.get("message", "") or "").strip()
-    memory = (data.get("memory", "") or "")
+    # A non-object body or non-string fields is a client bug: answer 400, not a 500 trace.
+    user_msg = (data.get("message") or "") if isinstance(data, dict) else None
+    memory = (data.get("memory") or "") if isinstance(data, dict) else None
+    if not isinstance(user_msg, str) or not isinstance(memory, str):
+        return jsonify({"reply": "That message didn't come through properly — please try again."}), 400
+    user_msg = user_msg.strip()
 
     if len(user_msg) > 500:
         return jsonify({"reply": "That message is a bit long — could you shorten it?"}), 400
@@ -1095,7 +1117,6 @@ def index():
     return send_from_directory("static", "index.html")
 
 
-@app.route("/upcoming-events")
 @app.route("/api/upcoming-events")
 def upcoming_events():
     """Read-only public school-calendar highlights for the sidebar."""
